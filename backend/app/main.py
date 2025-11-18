@@ -1,13 +1,33 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
+from app.core.logging_config import logger
 from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics
+from app.middleware.error_handler import (
+    http_exception_handler,
+    validation_exception_handler,
+    general_exception_handler,
+)
+from app.middleware.request_logger import log_requests
 
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
+    description="AI Agent Creation & Management Platform API",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
+
+# Exception handlers
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
+
+# Request logging middleware
+app.middleware("http")(log_requests)
 
 # CORS middleware
 app.add_middleware(
