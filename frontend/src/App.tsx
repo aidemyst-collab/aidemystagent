@@ -6,6 +6,7 @@ import { Register } from './pages/Register';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Agents } from './pages/Agents';
+import { AgentBuilder } from './pages/AgentBuilder';
 import { Tools } from './pages/Tools';
 import { Templates } from './pages/Templates';
 import { MainLayout } from './components/Common/MainLayout';
@@ -50,6 +51,8 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="agents" element={<Agents />} />
+              <Route path="agents/new" element={<AgentBuilder />} />
+              <Route path="agents/:id/edit" element={<AgentBuilder />} />
               <Route path="tools" element={<Tools />} />
               <Route path="templates" element={<Templates />} />
             </Route>

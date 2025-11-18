@@ -12,6 +12,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
     "@tanstack/react-query": "^5.90.10",
+    "@xyflow/react": "^12.9.3",
     "antd": "^5.29.0",
     "autoprefixer": "^10.4.22",
     "lucide-react": "^0.554.0",
@@ -20,6 +21,7 @@
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.66.1",
     "react-router-dom": "^7.9.6",
+    "reactflow": "^11.11.4",
     "tailwindcss": "^4.1.17",
     "zod": "^4.1.12",
     "zustand": "^4.4.7"
