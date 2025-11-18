@@ -10,6 +10,8 @@ import { AgentBuilder } from './pages/AgentBuilder';
 import { AgentTest } from './pages/AgentTest';
 import { Tools } from './pages/Tools';
 import { Templates } from './pages/Templates';
+import { Deployments } from './pages/Deployments';
+import { Analytics } from './pages/Analytics';
 import { MainLayout } from './components/Common/MainLayout';
 import { ProtectedRoute } from './components/Common/ProtectedRoute';
 
@@ -57,6 +59,8 @@ function App() {
               <Route path="agents/:id/test" element={<AgentTest />} />
               <Route path="tools" element={<Tools />} />
               <Route path="templates" element={<Templates />} />
+              <Route path="deployments" element={<Deployments />} />
+              <Route path="analytics" element={<Analytics />} />
             </Route>
 
             {/* Catch all */}

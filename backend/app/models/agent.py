@@ -32,6 +32,8 @@ class Agent(Base):
     organization = relationship("Organization", back_populates="agents")
     creator = relationship("User", back_populates="agents", foreign_keys=[creator_id])
     executions = relationship("AgentExecution", back_populates="agent")
+    deployments = relationship("Deployment", back_populates="agent")
+    versions = relationship("AgentVersion", back_populates="agent", order_by="desc(AgentVersion.version_number)")
 
 
 class AgentExecution(Base):

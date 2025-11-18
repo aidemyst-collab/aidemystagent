@@ -7,6 +7,8 @@ import {
   LogoutOutlined,
   SettingOutlined,
   FolderOutlined,
+  CloudOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../features/auth/authStore';
@@ -46,6 +48,18 @@ export const MainLayout = () => {
       icon: <FolderOutlined />,
       label: 'Templates',
       onClick: () => navigate('/templates'),
+    },
+    {
+      key: '/deployments',
+      icon: <CloudOutlined />,
+      label: 'Deployments',
+      onClick: () => navigate('/deployments'),
+    },
+    {
+      key: '/analytics',
+      icon: <BarChartOutlined />,
+      label: 'Analytics',
+      onClick: () => navigate('/analytics'),
     },
     ...(user?.role === 'admin'
       ? [
