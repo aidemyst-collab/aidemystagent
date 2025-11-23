@@ -29,12 +29,27 @@ class ApiClient {
       headers,
     });
 
+    const contentType = response.headers.get('content-type');
+    const isJson = contentType?.includes('application/json');
+
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+
+      if (isJson) {
+        const error = await response.json().catch(() => null);
+        errorMessage = error?.message || error?.detail || errorMessage;
+      }
+
+      throw new Error(errorMessage);
     }
 
-    return response.json();
+    // Only parse JSON if content-type is JSON
+    if (isJson) {
+      return response.json();
+    }
+
+    // If expecting JSON but got something else, throw error
+    throw new Error(`Expected JSON response but got ${contentType || 'unknown'}`);
   }
 
   get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
