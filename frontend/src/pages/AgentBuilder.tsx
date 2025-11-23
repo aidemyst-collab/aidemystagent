@@ -214,13 +214,13 @@ export const AgentBuilder = () => {
           borderBottom: '1px solid #f0f0f0',
         }}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-start gap-3">
           <div>
-            <div className="font-semibold text-lg">
+            <div className="font-semibold text-lg" style={{ lineHeight: '1.5' }}>
               {agentName || 'Untitled Agent'}
             </div>
             {agentDescription && (
-              <div style={{ fontSize: '12px', color: '#666', maxWidth: 400 }}>
+              <div style={{ fontSize: '12px', color: '#666', maxWidth: 400, lineHeight: '1.4', marginTop: '2px' }}>
                 {agentDescription}
               </div>
             )}
@@ -231,6 +231,7 @@ export const AgentBuilder = () => {
               icon={<EditOutlined />}
               onClick={handleEditAgent}
               size="small"
+              style={{ marginTop: '2px' }}
             />
           </Tooltip>
         </div>
