@@ -1,25 +1,67 @@
 import { useState, useCallback } from 'react';
-import { Layout, Button, Input, message, Modal, Form, InputNumber, Select, Switch } from 'antd';
-import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, SettingOutlined } from '@ant-design/icons';
+import { Layout, Button, Input, message, Modal, Form, InputNumber, Select, Tooltip, Spin } from 'antd';
+import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
 import { PropertyPanel } from '../components/AgentBuilder/PropertyPanel';
 import type { AgentNode, AgentEdge } from '../types/agent';
+import { useCreateAgent, useUpdateAgent, useDeployAgent } from '../features/agents/agentHooks';
 
 const { Header, Sider, Content } = Layout;
 const { TextArea } = Input;
 
 export const AgentBuilder = () => {
-  const [agentName, setAgentName] = useState('Untitled Agent');
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
   const [nodes, setNodes] = useState<AgentNode[]>([]);
   const [edges, setEdges] = useState<AgentEdge[]>([]);
   const [selectedNode, setSelectedNode] = useState<AgentNode | null>(null);
   const [history, setHistory] = useState<{ nodes: AgentNode[]; edges: AgentEdge[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [createModalVisible, setCreateModalVisible] = useState(true);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
-  const [configModalVisible, setConfigModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
+
+  // API hooks
+  const createAgent = useCreateAgent();
+  const updateAgent = useUpdateAgent();
+  const deployAgent = useDeployAgent();
+
+  const handleCreateAgent = useCallback(async () => {
+    try {
+      const values = await createForm.validateFields();
+      setAgentName(values.name);
+      setAgentDescription(values.description || '');
+      setCreateModalVisible(false);
+      message.success('Agent created! Start building your workflow.');
+    } catch (error) {
+      console.error('Create error:', error);
+    }
+  }, [createForm]);
+
+  const handleEditAgent = useCallback(() => {
+    editForm.setFieldsValue({
+      name: agentName,
+      description: agentDescription,
+    });
+    setEditModalVisible(true);
+  }, [agentName, agentDescription, editForm]);
+
+  const handleEditConfirm = useCallback(async () => {
+    try {
+      const values = await editForm.validateFields();
+      setAgentName(values.name);
+      setAgentDescription(values.description || '');
+      setEditModalVisible(false);
+      message.success('Agent information updated!');
+    } catch (error) {
+      console.error('Edit error:', error);
+    }
+  }, [editForm]);
 
   const handleSave = useCallback(() => {
     if (!agentName.trim()) {
@@ -67,26 +109,29 @@ export const AgentBuilder = () => {
         version: 1,
       };
 
-      console.log('Saving agent:', agentConfig);
+      let result;
 
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/v1/agents', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(agentConfig),
-      // });
-      // const result = await response.json();
+      if (agentId) {
+        // Update existing agent
+        result = await updateAgent.mutateAsync({
+          id: agentId,
+          data: agentConfig,
+        });
+      } else {
+        // Create new agent
+        result = await createAgent.mutateAsync(agentConfig);
+        setAgentId(result.id);
+      }
 
-      message.success(`Agent "${agentName}" saved successfully!`);
       setSaveModalVisible(false);
     } catch (error) {
       console.error('Save error:', error);
-      message.error('Failed to save agent');
+      // Error message is handled by the mutation hook
     }
-  }, [agentName, agentDescription, nodes, edges, form]);
+  }, [agentId, agentName, agentDescription, nodes, edges, form, createAgent, updateAgent]);
 
   const handleDeploy = useCallback(() => {
-    if (!agentName.trim()) {
+    if (!agentId) {
       message.error('Please save the agent first');
       return;
     }
@@ -94,13 +139,26 @@ export const AgentBuilder = () => {
     Modal.confirm({
       title: 'Deploy Agent',
       content: `Are you sure you want to deploy "${agentName}"? This will make it available via API.`,
-      onOk: () => {
-        console.log('Deploying agent:', agentName);
-        // TODO: Implement actual deployment
-        message.success(`Agent "${agentName}" deployed successfully!`);
+      onOk: async () => {
+        try {
+          const result = await deployAgent.mutateAsync(agentId);
+          Modal.success({
+            title: 'Agent Deployed!',
+            content: (
+              <div>
+                <p>Your agent is now live and accessible at:</p>
+                <p style={{ fontFamily: 'monospace', background: '#f5f5f5', padding: '8px', marginTop: '8px' }}>
+                  {result.endpoint}
+                </p>
+              </div>
+            ),
+          });
+        } catch (error) {
+          console.error('Deploy error:', error);
+        }
       },
     });
-  }, [agentName]);
+  }, [agentId, agentName, deployAgent]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
@@ -156,31 +214,25 @@ export const AgentBuilder = () => {
           borderBottom: '1px solid #f0f0f0',
         }}
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <div>
-            <Input
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              style={{ width: 300 }}
-              placeholder="Enter agent name..."
-              bordered={false}
-              className="font-semibold text-lg"
-            />
-            <TextArea
-              value={agentDescription}
-              onChange={(e) => setAgentDescription(e.target.value)}
-              placeholder="Add a brief description (optional)"
-              bordered={false}
-              autoSize={{ minRows: 1, maxRows: 2 }}
-              style={{ width: 300, fontSize: '12px', color: '#666' }}
-            />
+            <div className="font-semibold text-lg">
+              {agentName || 'Untitled Agent'}
+            </div>
+            {agentDescription && (
+              <div style={{ fontSize: '12px', color: '#666', maxWidth: 400 }}>
+                {agentDescription}
+              </div>
+            )}
           </div>
-          <Button
-            icon={<SettingOutlined />}
-            onClick={() => setConfigModalVisible(true)}
-          >
-            Settings
-          </Button>
+          <Tooltip title="Edit agent name and description">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={handleEditAgent}
+              size="small"
+            />
+          </Tooltip>
         </div>
         <div className="flex gap-2">
           <Button
@@ -197,10 +249,21 @@ export const AgentBuilder = () => {
           >
             Redo
           </Button>
-          <Button icon={<SaveOutlined />} onClick={handleSave} type="default">
-            Save
+          <Button
+            icon={createAgent.isPending || updateAgent.isPending ? <LoadingOutlined /> : <SaveOutlined />}
+            onClick={handleSave}
+            type="default"
+            loading={createAgent.isPending || updateAgent.isPending}
+          >
+            {agentId ? 'Update' : 'Save'}
           </Button>
-          <Button type="primary" icon={<RocketOutlined />} onClick={handleDeploy}>
+          <Button
+            type="primary"
+            icon={deployAgent.isPending ? <LoadingOutlined /> : <RocketOutlined />}
+            onClick={handleDeploy}
+            loading={deployAgent.isPending}
+            disabled={!agentId}
+          >
             Deploy
           </Button>
         </div>
@@ -223,15 +286,120 @@ export const AgentBuilder = () => {
         </Sider>
       </Layout>
 
+      {/* Create Agent Modal */}
+      <Modal
+        title="Create New Agent"
+        open={createModalVisible}
+        onOk={handleCreateAgent}
+        onCancel={() => {
+          message.warning('Please create an agent to continue');
+        }}
+        closable={false}
+        maskClosable={false}
+        width={500}
+        okText="Create Agent"
+      >
+        <Form
+          form={createForm}
+          layout="vertical"
+          initialValues={{
+            name: '',
+            description: '',
+          }}
+        >
+          <Form.Item
+            label="Agent Name"
+            name="name"
+            rules={[
+              { required: true, message: 'Please enter an agent name' },
+              { min: 3, message: 'Name must be at least 3 characters' },
+            ]}
+          >
+            <Input
+              placeholder="e.g., Customer Support Bot"
+              autoFocus
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Description"
+            name="description"
+            rules={[
+              { max: 500, message: 'Description must be less than 500 characters' },
+            ]}
+          >
+            <TextArea
+              rows={3}
+              placeholder="Brief description of what this agent does... (optional)"
+            />
+          </Form.Item>
+        </Form>
+
+        <div style={{ padding: 12, background: '#f5f5f5', borderRadius: 4, fontSize: 12, color: '#666' }}>
+          <strong>💡 Tip:</strong> You can edit the name and description later by clicking the edit icon.
+        </div>
+      </Modal>
+
+      {/* Edit Agent Modal */}
+      <Modal
+        title="Edit Agent Information"
+        open={editModalVisible}
+        onOk={handleEditConfirm}
+        onCancel={() => setEditModalVisible(false)}
+        width={500}
+        okText="Update"
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+        >
+          <Form.Item
+            label="Agent Name"
+            name="name"
+            rules={[
+              { required: true, message: 'Please enter an agent name' },
+              { min: 3, message: 'Name must be at least 3 characters' },
+            ]}
+          >
+            <Input placeholder="Agent name" />
+          </Form.Item>
+
+          <Form.Item
+            label="Description"
+            name="description"
+            rules={[
+              { max: 500, message: 'Description must be less than 500 characters' },
+            ]}
+          >
+            <TextArea
+              rows={3}
+              placeholder="Brief description (optional)"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* Save Configuration Modal */}
       <Modal
-        title="Save Agent Configuration"
+        title={agentId ? 'Update Agent Configuration' : 'Save Agent Configuration'}
         open={saveModalVisible}
         onOk={handleSaveConfirm}
         onCancel={() => setSaveModalVisible(false)}
         width={600}
-        okText="Save Agent"
+        okText={agentId ? 'Update Agent' : 'Save Agent'}
+        confirmLoading={createAgent.isPending || updateAgent.isPending}
       >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, marginBottom: 4 }}>
+            <strong>Agent:</strong> {agentName}
+          </div>
+          {agentDescription && (
+            <div style={{ fontSize: 12, color: '#666' }}>
+              {agentDescription}
+            </div>
+          )}
+        </div>
+
         <Form
           form={form}
           layout="vertical"
@@ -242,29 +410,8 @@ export const AgentBuilder = () => {
             timeout: 30000,
             maxRetries: 3,
             retryDelay: 1000,
-            ragEnabled: false,
-            ragTopK: 5,
-            ragScoreThreshold: 0.7,
-            ragSearchMethod: 'semantic',
-            ragAuthType: 'api_key',
           }}
         >
-          <Form.Item
-            label="Agent Name"
-            help="This will be used as the agent identifier"
-          >
-            <Input value={agentName} disabled />
-          </Form.Item>
-
-          <Form.Item label="Description">
-            <TextArea
-              value={agentDescription}
-              disabled
-              rows={2}
-              placeholder="No description provided"
-            />
-          </Form.Item>
-
           <Form.Item
             label="LLM Model"
             name="model"
@@ -301,64 +448,9 @@ export const AgentBuilder = () => {
 
         <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
           <p style={{ margin: 0, fontSize: 12, color: '#666' }}>
-            <strong>Workflow Summary:</strong>
-          </p>
-          <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#666' }}>
-            {nodes.length} node(s), {edges.length} connection(s)
+            <strong>Workflow Summary:</strong> {nodes.length} node(s), {edges.length} connection(s)
           </p>
         </div>
-      </Modal>
-
-      {/* Global Settings Modal */}
-      <Modal
-        title="Global Agent Settings"
-        open={configModalVisible}
-        onOk={() => setConfigModalVisible(false)}
-        onCancel={() => setConfigModalVisible(false)}
-        width={700}
-      >
-        <Form layout="vertical">
-          <Form.Item label="Agent Information">
-            <Input
-              value={agentName}
-              onChange={(e) => setAgentName(e.target.value)}
-              placeholder="Agent name"
-              style={{ marginBottom: 8 }}
-            />
-            <TextArea
-              value={agentDescription}
-              onChange={(e) => setAgentDescription(e.target.value)}
-              placeholder="Agent description"
-              rows={3}
-            />
-          </Form.Item>
-
-          <Form.Item label="Default Model Configuration">
-            <p style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
-              These settings will be used as defaults when saving. You can override them during save.
-            </p>
-            <Select defaultValue="gpt-4" style={{ width: '100%' }}>
-              <Select.Option value="gpt-4">GPT-4</Select.Option>
-              <Select.Option value="gpt-3.5-turbo">GPT-3.5 Turbo</Select.Option>
-              <Select.Option value="claude-3-opus">Claude 3 Opus</Select.Option>
-              <Select.Option value="claude-3-sonnet">Claude 3 Sonnet</Select.Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item label="Workflow Statistics">
-            <div style={{ padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-              <p style={{ margin: 0, fontSize: 13 }}>
-                <strong>Nodes:</strong> {nodes.length}
-              </p>
-              <p style={{ margin: '4px 0 0 0', fontSize: 13 }}>
-                <strong>Connections:</strong> {edges.length}
-              </p>
-              <p style={{ margin: '4px 0 0 0', fontSize: 13 }}>
-                <strong>Status:</strong> {nodes.length > 0 && edges.length > 0 ? '✓ Ready to save' : '⚠ Incomplete workflow'}
-              </p>
-            </div>
-          </Form.Item>
-        </Form>
       </Modal>
     </Layout>
   );
