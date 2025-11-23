@@ -19,7 +19,7 @@ import {
   OutputNode,
   SubgraphNode,
 } from './nodes';
-import { AgentNode, AgentEdge, NodeType } from '../../types/agent';
+import type { AgentNode, AgentEdge, NodeType } from '../../types/agent';
 
 const nodeTypes: NodeTypes = {
   InputNode,
