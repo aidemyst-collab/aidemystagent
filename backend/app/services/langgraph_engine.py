@@ -1,4 +1,4 @@
-from typing import TypedDict, Annotated, Sequence
+from typing import TypedDict, Annotated, Sequence, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolExecutor
@@ -12,7 +12,7 @@ class AgentState(TypedDict):
     current_node: str
     execution_path: list
     tool_results: dict
-    final_output: str | None
+    final_output: Optional[str]
 
 
 class LangGraphEngine:

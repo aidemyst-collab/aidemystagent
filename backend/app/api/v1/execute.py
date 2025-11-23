@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from uuid import UUID
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import json
 import asyncio
 
@@ -25,7 +25,7 @@ class ExecuteRequest(BaseModel):
 class ExecuteResponse(BaseModel):
     """Response model for agent execution."""
     execution_id: UUID
-    output: str | None
+    output: Optional[str]
     execution_path: list
     tokens_used: int
     execution_time: int
