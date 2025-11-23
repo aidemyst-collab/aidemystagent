@@ -1,5 +1,6 @@
 import { useCallback, useState, DragEvent } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   MiniMap,
   Controls,
   Background,

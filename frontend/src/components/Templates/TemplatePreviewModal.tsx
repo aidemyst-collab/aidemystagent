@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Spin, Alert, Descriptions, Tag, Divider } from 'antd';
-import ReactFlow, { Background, Controls, MiniMap } from '@xyflow/react';
+import { ReactFlow, Background, Controls, MiniMap } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 interface TemplatePreviewModalProps {
