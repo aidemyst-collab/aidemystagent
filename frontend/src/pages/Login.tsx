@@ -2,7 +2,7 @@ import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { LockOutlined, MailOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { useLogin } from '../features/auth/authHooks';
-import { LoginRequest } from '../types/auth';
+import type { LoginRequest } from '../types/auth';
 
 const { Title, Text } = Typography;
 
