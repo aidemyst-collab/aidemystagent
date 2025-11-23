@@ -6,10 +6,9 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
-  Connection,
   BackgroundVariant,
-  NodeTypes,
 } from '@xyflow/react';
+import type { Connection, NodeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   InputNode,

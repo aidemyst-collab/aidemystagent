@@ -1,6 +1,7 @@
 import { ToolOutlined } from '@ant-design/icons';
 import { BaseNode } from './BaseNode';
-import { NodeProps } from '@xyflow/react';
+import { Handle, Position } from '@xyflow/react';
+import type { NodeProps } from '@xyflow/react';
 
 export const ToolNode = (props: NodeProps) => {
   return (
