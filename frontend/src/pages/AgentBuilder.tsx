@@ -4,7 +4,7 @@ import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined } from '@ant-d
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
 import { PropertyPanel } from '../components/AgentBuilder/PropertyPanel';
-import { AgentNode, AgentEdge } from '../types/agent';
+import type { AgentNode, AgentEdge } from '../types/agent';
 
 const { Header, Sider, Content } = Layout;
 
