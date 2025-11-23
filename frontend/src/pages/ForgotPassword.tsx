@@ -2,7 +2,7 @@ import { Form, Input, Button, Card, Typography, message, Result } from 'antd';
 import { MailOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { useResetPassword } from '../features/auth/authHooks';
-import { PasswordResetRequest } from '../types/auth';
+import type { PasswordResetRequest } from '../types/auth';
 import { useState } from 'react';
 
 const { Title, Text } = Typography;

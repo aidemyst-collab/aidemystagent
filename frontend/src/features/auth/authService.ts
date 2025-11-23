@@ -1,5 +1,5 @@
 import { apiClient } from '../../services/api';
-import { User, AuthTokens, LoginRequest, RegisterRequest, PasswordResetRequest } from '../../types/auth';
+import type { User, AuthTokens, LoginRequest, RegisterRequest, PasswordResetRequest } from '../../types/auth';
 
 interface LoginResponse {
   user: User;
