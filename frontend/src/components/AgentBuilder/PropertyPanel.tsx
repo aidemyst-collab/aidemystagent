@@ -1,6 +1,6 @@
 import { Form, Input, Card, Typography, Empty, InputNumber, Select } from 'antd';
 import { useEffect } from 'react';
-import { Node } from '@xyflow/react';
+import type { Node } from '@xyflow/react';
 
 const { Title } = Typography;
 const { TextArea } = Input;
