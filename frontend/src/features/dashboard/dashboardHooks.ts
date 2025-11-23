@@ -6,6 +6,8 @@ export const useDashboardStats = () => {
     queryKey: ['dashboard', 'stats'],
     queryFn: dashboardService.getStats,
     refetchInterval: 30000, // Refetch every 30 seconds
+    retry: false, // Don't retry on 404
+    staleTime: 30000,
   });
 };
 
@@ -14,5 +16,7 @@ export const useRecentActivity = (limit: number = 10) => {
     queryKey: ['dashboard', 'activity', limit],
     queryFn: () => dashboardService.getRecentActivity(limit),
     refetchInterval: 10000, // Refetch every 10 seconds
+    retry: false, // Don't retry on 404
+    staleTime: 10000,
   });
 };
