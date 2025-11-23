@@ -1,15 +1,17 @@
-import { useState, useCallback, useEffect } from 'react';
-import { Layout, Button, Input, message, Modal, Form, InputNumber, Select, Tooltip } from 'antd';
-import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined } from '@ant-design/icons';
+import { useState, useCallback } from 'react';
+import { Layout, Button, Input, message, Modal, Form, InputNumber, Select, Tooltip, Spin } from 'antd';
+import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
 import { PropertyPanel } from '../components/AgentBuilder/PropertyPanel';
 import type { AgentNode, AgentEdge } from '../types/agent';
+import { useCreateAgent, useUpdateAgent, useDeployAgent } from '../features/agents/agentHooks';
 
 const { Header, Sider, Content } = Layout;
 const { TextArea } = Input;
 
 export const AgentBuilder = () => {
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
   const [nodes, setNodes] = useState<AgentNode[]>([]);
@@ -23,6 +25,11 @@ export const AgentBuilder = () => {
   const [form] = Form.useForm();
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
+
+  // API hooks
+  const createAgent = useCreateAgent();
+  const updateAgent = useUpdateAgent();
+  const deployAgent = useDeployAgent();
 
   const handleCreateAgent = useCallback(async () => {
     try {
@@ -102,26 +109,29 @@ export const AgentBuilder = () => {
         version: 1,
       };
 
-      console.log('Saving agent:', agentConfig);
+      let result;
 
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/v1/agents', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(agentConfig),
-      // });
-      // const result = await response.json();
+      if (agentId) {
+        // Update existing agent
+        result = await updateAgent.mutateAsync({
+          id: agentId,
+          data: agentConfig,
+        });
+      } else {
+        // Create new agent
+        result = await createAgent.mutateAsync(agentConfig);
+        setAgentId(result.id);
+      }
 
-      message.success(`Agent "${agentName}" saved successfully!`);
       setSaveModalVisible(false);
     } catch (error) {
       console.error('Save error:', error);
-      message.error('Failed to save agent');
+      // Error message is handled by the mutation hook
     }
-  }, [agentName, agentDescription, nodes, edges, form]);
+  }, [agentId, agentName, agentDescription, nodes, edges, form, createAgent, updateAgent]);
 
   const handleDeploy = useCallback(() => {
-    if (!agentName.trim()) {
+    if (!agentId) {
       message.error('Please save the agent first');
       return;
     }
@@ -129,13 +139,26 @@ export const AgentBuilder = () => {
     Modal.confirm({
       title: 'Deploy Agent',
       content: `Are you sure you want to deploy "${agentName}"? This will make it available via API.`,
-      onOk: () => {
-        console.log('Deploying agent:', agentName);
-        // TODO: Implement actual deployment
-        message.success(`Agent "${agentName}" deployed successfully!`);
+      onOk: async () => {
+        try {
+          const result = await deployAgent.mutateAsync(agentId);
+          Modal.success({
+            title: 'Agent Deployed!',
+            content: (
+              <div>
+                <p>Your agent is now live and accessible at:</p>
+                <p style={{ fontFamily: 'monospace', background: '#f5f5f5', padding: '8px', marginTop: '8px' }}>
+                  {result.endpoint}
+                </p>
+              </div>
+            ),
+          });
+        } catch (error) {
+          console.error('Deploy error:', error);
+        }
       },
     });
-  }, [agentName]);
+  }, [agentId, agentName, deployAgent]);
 
   const handleUndo = useCallback(() => {
     if (historyIndex > 0) {
@@ -226,10 +249,21 @@ export const AgentBuilder = () => {
           >
             Redo
           </Button>
-          <Button icon={<SaveOutlined />} onClick={handleSave} type="default">
-            Save
+          <Button
+            icon={createAgent.isPending || updateAgent.isPending ? <LoadingOutlined /> : <SaveOutlined />}
+            onClick={handleSave}
+            type="default"
+            loading={createAgent.isPending || updateAgent.isPending}
+          >
+            {agentId ? 'Update' : 'Save'}
           </Button>
-          <Button type="primary" icon={<RocketOutlined />} onClick={handleDeploy}>
+          <Button
+            type="primary"
+            icon={deployAgent.isPending ? <LoadingOutlined /> : <RocketOutlined />}
+            onClick={handleDeploy}
+            loading={deployAgent.isPending}
+            disabled={!agentId}
+          >
             Deploy
           </Button>
         </div>
@@ -347,12 +381,13 @@ export const AgentBuilder = () => {
 
       {/* Save Configuration Modal */}
       <Modal
-        title="Save Agent Configuration"
+        title={agentId ? 'Update Agent Configuration' : 'Save Agent Configuration'}
         open={saveModalVisible}
         onOk={handleSaveConfirm}
         onCancel={() => setSaveModalVisible(false)}
         width={600}
-        okText="Save Agent"
+        okText={agentId ? 'Update Agent' : 'Save Agent'}
+        confirmLoading={createAgent.isPending || updateAgent.isPending}
       >
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, marginBottom: 4 }}>
