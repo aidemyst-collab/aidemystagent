@@ -1,7 +1,7 @@
 import { Typography, Card, Row, Col, Statistic, List, Button, Space, Tag, Skeleton, Empty } from 'antd';
 import { RocketOutlined, PlayCircleOutlined, CheckCircleOutlined, PlusOutlined, AppstoreOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useDashboardStats, useRecentActivity } from '../features/dashboard/dashboardHooks';
-import { useAgents } from '../features/agents/agentHooks';
+import { useWorkflows } from '../features/workflows/workflowHooks';
 import { useNavigate } from 'react-router-dom';
 import type { RecentActivity } from '../features/dashboard/dashboardService';
 
@@ -23,11 +23,11 @@ const getActivityIcon = (type: RecentActivity['type']) => {
 const getActivityText = (activity: RecentActivity) => {
   switch (activity.type) {
     case 'agent_created':
-      return `Created agent "${activity.agentName}"`;
+      return `Created workflow "${activity.agentName}"`;
     case 'agent_deployed':
-      return `Deployed agent "${activity.agentName}"`;
+      return `Deployed workflow "${activity.agentName}"`;
     case 'agent_executed':
-      return `Executed agent "${activity.agentName}"`;
+      return `Executed workflow "${activity.agentName}"`;
     default:
       return activity.type;
   }
@@ -51,13 +51,13 @@ export const Dashboard = () => {
   const navigate = useNavigate();
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: activity, isLoading: activityLoading } = useRecentActivity(5);
-  const { data: agents, isLoading: agentsLoading } = useAgents();
+  const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ marginBottom: 8 }}>Dashboard</Title>
-        <Text type="secondary">Welcome back! Here's what's happening with your agents.</Text>
+        <Text type="secondary">Welcome back! Here's what's happening with your workflows.</Text>
       </div>
 
       {/* Statistics Cards */}
@@ -65,10 +65,10 @@ export const Dashboard = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card>
             <Statistic
-              title="Total Agents"
-              value={statsLoading ? 0 : (agents?.length || 0)}
+              title="Total Workflows"
+              value={statsLoading ? 0 : (workflows?.length || 0)}
               prefix={<RocketOutlined />}
-              loading={statsLoading || agentsLoading}
+              loading={statsLoading || workflowsLoading}
               valueStyle={{ color: '#3f8600' }}
             />
           </Card>
@@ -121,9 +121,9 @@ export const Dashboard = () => {
                 icon={<PlusOutlined />}
                 size="large"
                 block
-                onClick={() => navigate('/agents/builder')}
+                onClick={() => navigate('/agents/new')}
               >
-                Create New Agent
+                Create New Workflow
               </Button>
               <Button
                 icon={<RocketOutlined />}
@@ -131,7 +131,7 @@ export const Dashboard = () => {
                 block
                 onClick={() => navigate('/agents')}
               >
-                View All Agents
+                View All Workflows
               </Button>
               <Button
                 icon={<AppstoreOutlined />}
@@ -143,10 +143,10 @@ export const Dashboard = () => {
               </Button>
             </Space>
 
-            {agents && agents.length === 0 && (
+            {workflows && workflows.length === 0 && (
               <div style={{ marginTop: 16, padding: 12, background: '#f0f5ff', borderRadius: 4 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  💡 <strong>Get Started:</strong> Create your first AI agent to automate workflows and enhance productivity.
+                  💡 <strong>Get Started:</strong> Create your first workflow to automate tasks and enhance productivity.
                 </Text>
               </div>
             )}
@@ -199,10 +199,10 @@ export const Dashboard = () => {
         </Col>
       </Row>
 
-      {/* Recent Agents */}
-      {agents && agents.length > 0 && (
+      {/* Recent Workflows */}
+      {workflows && workflows.length > 0 && (
         <Card
-          title="Recent Agents"
+          title="Recent Workflows"
           extra={
             <Button type="link" onClick={() => navigate('/agents')}>
               View all
@@ -211,21 +211,21 @@ export const Dashboard = () => {
           style={{ marginTop: 16 }}
         >
           <List
-            dataSource={agents.slice(0, 5)}
-            renderItem={(agent) => (
+            dataSource={workflows.slice(0, 5)}
+            renderItem={(workflow) => (
               <List.Item
                 actions={[
-                  <Tag color={agent.status === 'deployed' ? 'green' : 'default'}>
-                    {agent.status}
+                  <Tag color={workflow.status === 'deployed' ? 'green' : 'default'}>
+                    {workflow.status}
                   </Tag>,
-                  <Button type="link" onClick={() => navigate(`/agents/${agent.id}`)}>
+                  <Button type="link" onClick={() => navigate(`/agents/${workflow.id}`)}>
                     View
                   </Button>,
                 ]}
               >
                 <List.Item.Meta
-                  title={agent.name}
-                  description={agent.description || 'No description'}
+                  title={workflow.name}
+                  description={workflow.description || 'No description'}
                 />
               </List.Item>
             )}

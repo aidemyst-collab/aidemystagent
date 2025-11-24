@@ -64,6 +64,7 @@ export const AgentBuilder = () => {
   }, [editForm]);
 
   const handleSave = useCallback(() => {
+    console.log('handleSave called - agentName:', agentName, 'nodes:', nodes.length);
     if (!agentName.trim()) {
       message.error('Please enter an agent name');
       return;
@@ -72,12 +73,16 @@ export const AgentBuilder = () => {
       message.error('Please add at least one node to your agent');
       return;
     }
+    console.log('Opening save modal');
     setSaveModalVisible(true);
   }, [agentName, nodes]);
 
   const handleSaveConfirm = useCallback(async () => {
+    console.log('handleSaveConfirm called');
     try {
+      console.log('Validating form fields...');
       const values = await form.validateFields();
+      console.log('Form values:', values);
 
       const agentConfig = {
         name: agentName,
@@ -109,20 +114,26 @@ export const AgentBuilder = () => {
         version: 1,
       };
 
+      console.log('Agent config built:', agentConfig);
+
       let result;
 
       if (agentId) {
+        console.log('Updating existing agent with ID:', agentId);
         // Update existing agent
         result = await updateAgent.mutateAsync({
           id: agentId,
           data: agentConfig,
         });
       } else {
+        console.log('Creating new agent');
         // Create new agent
         result = await createAgent.mutateAsync(agentConfig);
+        console.log('Agent created with result:', result);
         setAgentId(result.id);
       }
 
+      console.log('Closing save modal');
       setSaveModalVisible(false);
     } catch (error) {
       console.error('Save error:', error);

@@ -6,12 +6,17 @@ export const useCreateAgent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: agentService.createAgent,
+    mutationFn: (data) => {
+      console.log('useCreateAgent mutationFn called with:', data);
+      return agentService.createAgent(data);
+    },
     onSuccess: (data) => {
+      console.log('useCreateAgent onSuccess:', data);
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       message.success(`Agent "${data.name}" saved successfully!`);
     },
     onError: (error: any) => {
+      console.log('useCreateAgent onError:', error);
       message.error(error.message || 'Failed to save agent');
     },
   });
@@ -21,14 +26,18 @@ export const useUpdateAgent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      agentService.updateAgent(id, data),
+    mutationFn: ({ id, data }: { id: string; data: any }) => {
+      console.log('useUpdateAgent mutationFn called with id:', id, 'data:', data);
+      return agentService.updateAgent(id, data);
+    },
     onSuccess: (data) => {
+      console.log('useUpdateAgent onSuccess:', data);
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent', data.id] });
       message.success(`Agent "${data.name}" updated successfully!`);
     },
     onError: (error: any) => {
+      console.log('useUpdateAgent onError:', error);
       message.error(error.message || 'Failed to update agent');
     },
   });

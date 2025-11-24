@@ -47,14 +47,26 @@ export const agentService = {
    * Create a new agent
    */
   createAgent: async (data: CreateAgentRequest): Promise<Agent> => {
-    return apiClient.post<Agent>('/agents', data);
+    const { name, description, ...config } = data;
+    const payload = {
+      name,
+      description,
+      config
+    };
+    console.log('Creating agent with payload:', payload);
+    return apiClient.post<Agent>('/agents', payload);
   },
 
   /**
    * Update an existing agent
    */
   updateAgent: async (id: string, data: Partial<CreateAgentRequest>): Promise<Agent> => {
-    return apiClient.put<Agent>(`/agents/${id}`, data);
+    const { name, description, ...config } = data;
+    return apiClient.put<Agent>(`/agents/${id}`, {
+      name,
+      description,
+      config
+    });
   },
 
   /**
