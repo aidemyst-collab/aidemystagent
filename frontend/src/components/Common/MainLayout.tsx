@@ -34,7 +34,7 @@ export const MainLayout = () => {
     {
       key: '/agents',
       icon: <RocketOutlined />,
-      label: 'Agents',
+      label: 'Workflows',
       onClick: () => navigate('/agents'),
     },
     {

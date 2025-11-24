@@ -8,7 +8,7 @@ import {
   ExportOutlined,
   ApartmentOutlined,
 } from '@ant-design/icons';
-import type { NodeType } from '../../types/agent';
+import type { NodeType } from '../../types/workflow';
 
 const { Title, Text } = Typography;
 
