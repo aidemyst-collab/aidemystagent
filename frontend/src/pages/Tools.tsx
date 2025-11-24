@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Typography, Row, Col, Tabs, Spin, Empty } from 'antd';
+import { Typography, Row, Col, Tabs, Spin, Empty, Button, message, Popconfirm } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { ToolCard } from '../components/Tools/ToolCard';
 import { ToolTester } from '../components/Tools/ToolTester';
+import { ToolCreationModal } from '../components/Tools/ToolCreationModal';
+import { toolService, type Tool as CustomTool } from '../features/tools/toolService';
 
 const { Title } = Typography;
 
@@ -13,23 +16,53 @@ interface Tool {
 
 export const Tools = () => {
   const [builtInTools, setBuiltInTools] = useState<Tool[]>([]);
+  const [customTools, setCustomTools] = useState<CustomTool[]>([]);
+  const [apiTools, setApiTools] = useState<CustomTool[]>([]);
+  const [mcpTools, setMcpTools] = useState<CustomTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [testerVisible, setTesterVisible] = useState(false);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editingTool, setEditingTool] = useState<CustomTool | null>(null);
 
   useEffect(() => {
-    fetchBuiltInTools();
+    fetchAllTools();
   }, []);
 
-  const fetchBuiltInTools = async () => {
+  const fetchAllTools = async () => {
+    setLoading(true);
     try {
-      const response = await fetch('/api/v1/tools/built-in');
-      const data = await response.json();
-      setBuiltInTools(data.tools || []);
+      await Promise.all([
+        fetchBuiltInTools(),
+        fetchCustomTools(),
+      ]);
     } catch (error) {
       console.error('Error fetching tools:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBuiltInTools = async () => {
+    try {
+      const data = await toolService.getBuiltInTools();
+      setBuiltInTools(data.tools || []);
+    } catch (error) {
+      console.error('Error fetching built-in tools:', error);
+    }
+  };
+
+  const fetchCustomTools = async () => {
+    try {
+      const data = await toolService.getTools();
+      const tools = data.tools || [];
+
+      // Separate tools by type
+      setCustomTools(tools.filter(t => t.type === 'custom'));
+      setApiTools(tools.filter(t => t.type === 'api'));
+      setMcpTools(tools.filter(t => t.type === 'mcp'));
+    } catch (error) {
+      console.error('Error fetching custom tools:', error);
     }
   };
 
@@ -43,6 +76,55 @@ export const Tools = () => {
     // TODO: Show tool details modal
   };
 
+  const handleCreateTool = () => {
+    setEditingTool(null);
+    setCreateModalVisible(true);
+  };
+
+  const handleEditTool = (tool: CustomTool) => {
+    setEditingTool(tool);
+    setCreateModalVisible(true);
+  };
+
+  const handleDeleteTool = async (toolId: string) => {
+    try {
+      await toolService.deleteTool(toolId);
+      message.success('Tool deleted successfully');
+      fetchCustomTools();
+    } catch (error) {
+      console.error('Error deleting tool:', error);
+      message.error('Failed to delete tool');
+    }
+  };
+
+  const handleModalSuccess = () => {
+    fetchCustomTools();
+  };
+
+  const renderToolGrid = (tools: CustomTool[], category: string) => {
+    if (tools.length === 0) {
+      return <Empty description={`No ${category.toLowerCase()} tools created yet`} />;
+    }
+
+    return (
+      <Row gutter={[16, 16]}>
+        {tools.map((tool) => (
+          <Col key={tool.id} xs={24} sm={12} lg={8} xl={6}>
+            <ToolCard
+              name={tool.name}
+              description={tool.description}
+              category={category}
+              onTest={() => handleTest({ name: tool.name, description: tool.description, schema: {} })}
+              onDetails={() => handleDetails({ name: tool.name, description: tool.description, schema: {} })}
+              onEdit={() => handleEditTool(tool)}
+              onDelete={() => handleDeleteTool(tool.id)}
+            />
+          </Col>
+        ))}
+      </Row>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -53,17 +135,29 @@ export const Tools = () => {
 
   return (
     <div>
-      <Title level={2}>Tools</Title>
-      <p className="text-gray-600 mb-6">
-        Browse and test available tools for your agents
-      </p>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <Title level={2} className="mb-2">Tools</Title>
+          <p className="text-gray-600">
+            Browse and test available tools for your agents
+          </p>
+        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={handleCreateTool}
+          size="large"
+        >
+          Create Tool
+        </Button>
+      </div>
 
       <Tabs
         defaultActiveKey="built-in"
         items={[
           {
             key: 'built-in',
-            label: 'Built-in Tools',
+            label: `Built-in Tools (${builtInTools.length})`,
             children: (
               <>
                 {builtInTools.length === 0 ? (
@@ -88,17 +182,18 @@ export const Tools = () => {
           },
           {
             key: 'custom',
-            label: 'Custom Tools',
-            children: (
-              <Empty description="No custom tools created yet" />
-            ),
+            label: `Custom Tools (${customTools.length})`,
+            children: renderToolGrid(customTools, 'Custom'),
           },
           {
             key: 'api',
-            label: 'API Integration Tools',
-            children: (
-              <Empty description="No API integration tools configured" />
-            ),
+            label: `API Integration (${apiTools.length})`,
+            children: renderToolGrid(apiTools, 'API Integration'),
+          },
+          {
+            key: 'mcp',
+            label: `MCP Tools (${mcpTools.length})`,
+            children: renderToolGrid(mcpTools, 'MCP'),
           },
         ]}
       />
@@ -114,6 +209,16 @@ export const Tools = () => {
           }}
         />
       )}
+
+      <ToolCreationModal
+        visible={createModalVisible}
+        onClose={() => {
+          setCreateModalVisible(false);
+          setEditingTool(null);
+        }}
+        onSuccess={handleModalSuccess}
+        initialData={editingTool}
+      />
     </div>
   );
 };
