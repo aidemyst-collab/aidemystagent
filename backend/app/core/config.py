@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
