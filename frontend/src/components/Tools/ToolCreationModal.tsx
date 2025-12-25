@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Button, message, Space, Tabs } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 
@@ -10,6 +10,7 @@ interface ToolCreationModalProps {
   onClose: () => void;
   onSuccess: () => void;
   initialData?: any;
+  preSelectedType?: string | null;
 }
 
 interface ParameterField {
@@ -20,11 +21,26 @@ interface ParameterField {
   default?: string;
 }
 
-export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: ToolCreationModalProps) => {
+interface KeyValuePair {
+  key: string;
+  value: string;
+}
+
+export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, preSelectedType }: ToolCreationModalProps) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [toolType, setToolType] = useState<string>('custom');
+  const [toolType, setToolType] = useState<string>(preSelectedType || 'custom');
   const [parameters, setParameters] = useState<ParameterField[]>([]);
+  const [headers, setHeaders] = useState<KeyValuePair[]>([]);
+  const [queryParams, setQueryParams] = useState<KeyValuePair[]>([]);
+
+  // Update toolType when preSelectedType changes
+  useEffect(() => {
+    if (preSelectedType) {
+      setToolType(preSelectedType);
+      form.setFieldsValue({ tool_type: preSelectedType });
+    }
+  }, [preSelectedType, form]);
 
   const handleSubmit = async (values: any) => {
     setLoading(true);
@@ -44,11 +60,25 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
       };
 
       if (toolType === 'api') {
+        const headersObj = headers.reduce((acc, h) => {
+          if (h.key && h.value) acc[h.key] = h.value;
+          return acc;
+        }, {} as Record<string, string>);
+
+        const queryParamsObj = queryParams.reduce((acc, p) => {
+          if (p.key && p.value) acc[p.key] = p.value;
+          return acc;
+        }, {} as Record<string, string>);
+
         config.api = {
           endpoint: values.api_endpoint,
           method: values.api_method,
           auth_type: values.auth_type,
-          headers: values.headers ? JSON.parse(values.headers) : {},
+          token: values.auth_token || '',
+          headers: headersObj,
+          query_params: queryParamsObj,
+          body: values.request_body ? JSON.parse(values.request_body) : undefined,
+          timeout: values.timeout || 30,
         };
       } else if (toolType === 'code') {
         config.code = {
@@ -81,6 +111,8 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
       message.success('Tool created successfully');
       form.resetFields();
       setParameters([]);
+      setHeaders([]);
+      setQueryParams([]);
       onSuccess();
       onClose();
     } catch (error) {
@@ -106,6 +138,34 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
     const updated = [...parameters];
     updated[index] = { ...updated[index], [field]: value };
     setParameters(updated);
+  };
+
+  const addHeader = () => {
+    setHeaders([...headers, { key: '', value: '' }]);
+  };
+
+  const removeHeader = (index: number) => {
+    setHeaders(headers.filter((_, i) => i !== index));
+  };
+
+  const updateHeader = (index: number, field: 'key' | 'value', value: string) => {
+    const updated = [...headers];
+    updated[index] = { ...updated[index], [field]: value };
+    setHeaders(updated);
+  };
+
+  const addQueryParam = () => {
+    setQueryParams([...queryParams, { key: '', value: '' }]);
+  };
+
+  const removeQueryParam = (index: number) => {
+    setQueryParams(queryParams.filter((_, i) => i !== index));
+  };
+
+  const updateQueryParam = (index: number, field: 'key' | 'value', value: string) => {
+    const updated = [...queryParams];
+    updated[index] = { ...updated[index], [field]: value };
+    setQueryParams(updated);
   };
 
   const renderCustomToolForm = () => (
@@ -151,6 +211,7 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
         label="HTTP Method"
         name="api_method"
         rules={[{ required: true, message: 'Please select HTTP method' }]}
+        initialValue="GET"
       >
         <Select placeholder="Select HTTP method">
           <Option value="GET">GET</Option>
@@ -165,26 +226,103 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
         label="Authentication Type"
         name="auth_type"
         rules={[{ required: true, message: 'Please select authentication type' }]}
+        initialValue="none"
       >
         <Select placeholder="Select authentication type">
           <Option value="none">None</Option>
           <Option value="api_key">API Key</Option>
           <Option value="bearer">Bearer Token</Option>
           <Option value="basic">Basic Auth</Option>
-          <Option value="oauth2">OAuth 2.0</Option>
         </Select>
       </Form.Item>
 
       <Form.Item
-        label="Headers (JSON)"
-        name="headers"
-        tooltip="Optional custom headers in JSON format"
+        label="Authentication Token"
+        name="auth_token"
+        tooltip="API key, bearer token, or base64 encoded credentials for basic auth"
+      >
+        <Input.Password placeholder="Enter your token or credentials" />
+      </Form.Item>
+
+      <Form.Item label="Headers" tooltip="Add custom HTTP headers">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          {headers.map((header, index) => (
+            <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Input
+                placeholder="Header name (e.g., Content-Type)"
+                value={header.key}
+                onChange={(e) => updateHeader(index, 'key', e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Input
+                placeholder="Header value"
+                value={header.value}
+                onChange={(e) => updateHeader(index, 'value', e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => removeHeader(index)}
+              />
+            </div>
+          ))}
+          <Button type="dashed" onClick={addHeader} icon={<PlusOutlined />} block>
+            Add Header
+          </Button>
+        </Space>
+      </Form.Item>
+
+      <Form.Item label="Query Parameters" tooltip="Add URL query parameters">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          {queryParams.map((param, index) => (
+            <div key={index} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Input
+                placeholder="Parameter name"
+                value={param.key}
+                onChange={(e) => updateQueryParam(index, 'key', e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Input
+                placeholder="Parameter value"
+                value={param.value}
+                onChange={(e) => updateQueryParam(index, 'value', e.target.value)}
+                style={{ flex: 1 }}
+              />
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => removeQueryParam(index)}
+              />
+            </div>
+          ))}
+          <Button type="dashed" onClick={addQueryParam} icon={<PlusOutlined />} block>
+            Add Query Parameter
+          </Button>
+        </Space>
+      </Form.Item>
+
+      <Form.Item
+        label="Request Body (JSON)"
+        name="request_body"
+        tooltip="Request body for POST, PUT, PATCH methods"
       >
         <TextArea
-          rows={3}
-          placeholder='{"Content-Type": "application/json"}'
+          rows={6}
+          placeholder='{"key": "value"}'
           style={{ fontFamily: 'monospace' }}
         />
+      </Form.Item>
+
+      <Form.Item
+        label="Timeout (seconds)"
+        name="timeout"
+        initialValue={30}
+        tooltip="Request timeout in seconds"
+      >
+        <Input type="number" min={1} max={300} placeholder="30" />
       </Form.Item>
     </>
   );
@@ -222,9 +360,17 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
     </>
   );
 
+  const getModalTitle = () => {
+    if (initialData) return 'Edit Tool';
+    if (preSelectedType === 'custom') return 'Create Custom Code Tool';
+    if (preSelectedType === 'api') return 'Create API Integration Tool';
+    if (preSelectedType === 'mcp') return 'Create MCP Tool';
+    return 'Create New Tool';
+  };
+
   return (
     <Modal
-      title={initialData ? 'Edit Tool' : 'Create New Tool'}
+      title={getModalTitle()}
       open={visible}
       onCancel={onClose}
       width={800}
@@ -255,17 +401,19 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData }: 
           <TextArea rows={2} placeholder="Describe what this tool does" />
         </Form.Item>
 
-        <Form.Item
-          label="Tool Type"
-          name="tool_type"
-          rules={[{ required: true, message: 'Please select tool type' }]}
-        >
-          <Select placeholder="Select tool type" onChange={setToolType} value={toolType}>
-            <Option value="custom">Custom Code</Option>
-            <Option value="api">API Integration</Option>
-            <Option value="mcp">MCP (Model Context Protocol)</Option>
-          </Select>
-        </Form.Item>
+        {!preSelectedType && (
+          <Form.Item
+            label="Tool Type"
+            name="tool_type"
+            rules={[{ required: true, message: 'Please select tool type' }]}
+          >
+            <Select placeholder="Select tool type" onChange={setToolType} value={toolType}>
+              <Option value="custom">Custom Code</Option>
+              <Option value="api">API Integration</Option>
+              <Option value="mcp">MCP (Model Context Protocol)</Option>
+            </Select>
+          </Form.Item>
+        )}
 
         {toolType === 'custom' && renderCustomToolForm()}
         {toolType === 'api' && renderAPIToolForm()}

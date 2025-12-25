@@ -7,6 +7,8 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.models.agent import Agent, AgentExecution
+from app.models.user import User
+from app.api.deps import get_current_active_user, require_permission
 
 router = APIRouter()
 
@@ -17,6 +19,8 @@ async def get_analytics(
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("analytics:read")),
 ) -> Dict[str, Any]:
     """Get analytics data for agents and executions."""
 

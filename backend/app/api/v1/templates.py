@@ -5,20 +5,29 @@ from uuid import UUID
 
 from app.core.database import get_db
 from app.models.agent import Agent, AgentStatus
+from app.models.user import User
 from app.services.templates import AgentTemplates
+from app.api.deps import get_current_active_user, require_permission
 
 router = APIRouter()
 
 
 @router.get("/")
-async def list_templates():
+async def list_templates(
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:read")),
+):
     """List all available agent templates."""
     templates = AgentTemplates.get_all_templates()
     return {"templates": templates}
 
 
 @router.get("/{template_id}")
-async def get_template(template_id: str):
+async def get_template(
+    template_id: str,
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:read")),
+):
     """Get a specific template by ID."""
     templates = AgentTemplates.get_all_templates()
     template = next((t for t in templates if t["id"] == template_id), None)
@@ -36,6 +45,8 @@ async def get_template(template_id: str):
 async def clone_template(
     template_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:create")),
 ):
     """Clone a template to create a new agent."""
     templates = AgentTemplates.get_all_templates()
@@ -47,17 +58,13 @@ async def clone_template(
             detail="Template not found",
         )
 
-    # TODO: Get current user from auth
-    org_id = "00000000-0000-0000-0000-000000000000"
-    creator_id = "00000000-0000-0000-0000-000000000000"
-
     # Create new agent from template
     agent = Agent(
         name=template["name"],
         description=template["description"],
         config=template["config"],
-        organization_id=org_id,
-        creator_id=creator_id,
+        organization_id=current_user.organization_id,
+        creator_id=current_user.id,
         status=AgentStatus.DRAFT,
     )
 

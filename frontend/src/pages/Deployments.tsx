@@ -13,6 +13,7 @@ import {
 import { PlusOutlined } from '@ant-design/icons';
 import { DeploymentCard } from '../components/Deployments/DeploymentCard';
 import { DeploymentModal } from '../components/Deployments/DeploymentModal';
+import { apiClient } from '../services/api';
 
 const { Option } = Select;
 
@@ -50,17 +51,10 @@ export const Deployments: React.FC = () => {
   const fetchData = async () => {
     try {
       // Fetch deployments and agents in parallel
-      const [deploymentsRes, agentsRes] = await Promise.all([
-        fetch('/api/v1/deployments'),
-        fetch('/api/v1/agents'),
+      const [deploymentsData, agentsData] = await Promise.all([
+        apiClient.get('/deployments'),
+        apiClient.get('/agents'),
       ]);
-
-      if (!deploymentsRes.ok || !agentsRes.ok) {
-        throw new Error('Failed to fetch data');
-      }
-
-      const deploymentsData = await deploymentsRes.json();
-      const agentsData = await agentsRes.json();
 
       setDeployments(deploymentsData.deployments);
       setAgents(agentsData.agents);
@@ -73,14 +67,7 @@ export const Deployments: React.FC = () => {
 
   const handleStop = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/deployments/${id}/stop`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to stop deployment');
-      }
-
+      await apiClient.post(`/deployments/${id}/stop`);
       message.success('Deployment stopped successfully');
       fetchData();
     } catch (err) {
@@ -90,14 +77,7 @@ export const Deployments: React.FC = () => {
 
   const handleRestart = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/deployments/${id}/restart`, {
-        method: 'POST',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to restart deployment');
-      }
-
+      await apiClient.post(`/deployments/${id}/restart`);
       message.success('Deployment restarted successfully');
       fetchData();
     } catch (err) {
@@ -109,14 +89,7 @@ export const Deployments: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      const response = await fetch(`/api/v1/deployments/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete deployment');
-      }
-
+      await apiClient.delete(`/deployments/${id}`);
       message.success('Deployment deleted successfully');
       fetchData();
     } catch (err) {

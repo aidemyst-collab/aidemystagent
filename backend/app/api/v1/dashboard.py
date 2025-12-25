@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.core.database import get_db
 from app.models.agent import Agent, AgentExecution
+from app.models.user import User
+from app.api.deps import get_current_active_user, require_permission
 from typing import Dict, Any, List
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -10,7 +12,9 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("/stats")
 async def get_dashboard_stats(
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("dashboard:read")),
 ) -> Dict[str, Any]:
     """Get dashboard statistics."""
     
@@ -41,7 +45,9 @@ async def get_dashboard_stats(
 @router.get("/activity")
 async def get_recent_activity(
     limit: int = 10,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("dashboard:read")),
 ) -> List[Dict[str, Any]]:
     """Get recent activity."""
     

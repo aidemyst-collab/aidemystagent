@@ -1,17 +1,20 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Layout, Button, Input, message, Modal, Form, InputNumber, Tooltip } from 'antd';
 import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
 import { PropertyPanel } from '../components/AgentBuilder/PropertyPanel';
 import type { WorkflowNode, WorkflowEdge } from '../types/workflow';
-import { useCreateWorkflow, useUpdateWorkflow, useDeployWorkflow } from '../features/workflows/workflowHooks';
+import { useCreateWorkflow, useUpdateWorkflow, useDeployWorkflow, useWorkflow } from '../features/workflows/workflowHooks';
 
 const { Header, Sider, Content } = Layout;
 const { TextArea } = Input;
 
 export const WorkflowBuilder = () => {
-  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const [workflowId, setWorkflowId] = useState<string | null>(id || null);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowDescription, setWorkflowDescription] = useState('');
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -19,7 +22,7 @@ export const WorkflowBuilder = () => {
   const [selectedNode, setSelectedNode] = useState<WorkflowNode | null>(null);
   const [history, setHistory] = useState<{ nodes: WorkflowNode[]; edges: WorkflowEdge[] }[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [createModalVisible, setCreateModalVisible] = useState(true);
+  const [createModalVisible, setCreateModalVisible] = useState(!id); // Hide modal if editing
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -30,6 +33,23 @@ export const WorkflowBuilder = () => {
   const createWorkflow = useCreateWorkflow();
   const updateWorkflow = useUpdateWorkflow();
   const deployWorkflow = useDeployWorkflow();
+  const { data: workflowData, isLoading: isLoadingWorkflow } = useWorkflow(id || null);
+
+  // Load workflow data when editing
+  useEffect(() => {
+    if (workflowData) {
+      console.log('Loading workflow data:', workflowData);
+      console.log('Config:', workflowData.config);
+      console.log('Nodes:', workflowData.config?.nodes);
+      console.log('Edges:', workflowData.config?.edges);
+      setWorkflowId(workflowData.id);
+      setWorkflowName(workflowData.name);
+      setWorkflowDescription(workflowData.description || '');
+      setNodes(workflowData.config?.nodes || []);
+      setEdges(workflowData.config?.edges || []);
+      message.success(`Loaded workflow: ${workflowData.name}`);
+    }
+  }, [workflowData]);
 
   const handleCreateWorkflow = useCallback(async () => {
     try {
@@ -184,11 +204,37 @@ export const WorkflowBuilder = () => {
 
   const handleNodeUpdate = useCallback((nodeId: string, data: any) => {
     setNodes((nds) =>
-      nds.map((node) =>
-        node.id === nodeId ? { ...node, data: { ...node.data, ...data } } : node
-      )
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          // Deep merge the data to preserve nested config
+          const deepMerge = (target: any, source: any): any => {
+            const output = { ...target };
+            for (const key in source) {
+              if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                output[key] = deepMerge(target[key] || {}, source[key]);
+              } else {
+                output[key] = source[key];
+              }
+            }
+            return output;
+          };
+
+          return { ...node, data: deepMerge(node.data, data) };
+        }
+        return node;
+      })
     );
   }, []);
+
+  // Show loading state while fetching workflow
+  if (id && isLoadingWorkflow) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 112px)' }}>
+        <LoadingOutlined style={{ fontSize: 48 }} />
+        <span style={{ marginLeft: 16, fontSize: 18 }}>Loading workflow...</span>
+      </div>
+    );
+  }
 
   return (
     <Layout style={{ height: 'calc(100vh - 112px)' }}>
@@ -263,15 +309,20 @@ export const WorkflowBuilder = () => {
         </Sider>
         <Content>
           <AgentCanvas
-            initialNodes={nodes}
-            initialEdges={edges}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onNodeSelect={setSelectedNode}
+            initialNodes={nodes as any}
+            initialEdges={edges as any}
+            onNodesChange={handleNodesChange as any}
+            onEdgesChange={handleEdgesChange as any}
+            onNodeSelect={setSelectedNode as any}
           />
         </Content>
         <Sider width={300} theme="light" style={{ borderLeft: '1px solid #f0f0f0' }}>
-          <PropertyPanel selectedNode={selectedNode} onUpdate={handleNodeUpdate} />
+          <PropertyPanel
+            selectedNode={selectedNode}
+            onUpdate={handleNodeUpdate}
+            allNodes={nodes}
+            allEdges={edges}
+          />
         </Sider>
       </Layout>
 
@@ -280,13 +331,10 @@ export const WorkflowBuilder = () => {
         title="Create New Workflow"
         open={createModalVisible}
         onOk={handleCreateWorkflow}
-        onCancel={() => {
-          message.warning('Please create a workflow to continue');
-        }}
-        closable={false}
-        maskClosable={false}
+        onCancel={() => navigate('/agents')}
         width={500}
         okText="Create Workflow"
+        cancelText="Cancel"
       >
         <Form
           form={createForm}

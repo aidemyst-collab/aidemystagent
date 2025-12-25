@@ -12,6 +12,7 @@ interface BaseNodeProps {
   color: string;
   hasInput?: boolean;
   hasOutput?: boolean;
+  minWidth?: number;
 }
 
 export const BaseNode = ({
@@ -21,6 +22,7 @@ export const BaseNode = ({
   color,
   hasInput = true,
   hasOutput = true,
+  minWidth = 180,
 }: BaseNodeProps) => {
   return (
     <>
@@ -36,7 +38,7 @@ export const BaseNode = ({
         style={{
           border: selected ? `2px solid ${color}` : `1px solid ${color}`,
           borderRadius: 8,
-          minWidth: 180,
+          minWidth,
           backgroundColor: selected ? `${color}10` : 'white',
         }}
       >

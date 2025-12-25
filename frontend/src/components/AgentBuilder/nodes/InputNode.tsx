@@ -10,6 +10,7 @@ export const InputNode = (props: NodeProps) => {
       icon={<LoginOutlined />}
       color="#52c41a"
       hasInput={false}
+      minWidth={120}
     />
   );
 };

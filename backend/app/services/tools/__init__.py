@@ -4,6 +4,7 @@ from .calculator import CalculatorTool
 from .datetime_tool import DateTimeTool
 from .json_parser import JSONParserTool
 from .web_search import WebSearchTool
+from .api_integration import APIIntegrationTool
 
 
 class ToolRegistry:
@@ -19,6 +20,7 @@ class ToolRegistry:
         self.register_tool(DateTimeTool())
         self.register_tool(JSONParserTool())
         self.register_tool(WebSearchTool())
+        self.register_tool(APIIntegrationTool())
 
     def register_tool(self, tool: BaseTool):
         """Register a tool."""
@@ -63,6 +65,7 @@ __all__ = [
     "DateTimeTool",
     "JSONParserTool",
     "WebSearchTool",
+    "APIIntegrationTool",
     "ToolRegistry",
     "tool_registry",
 ]

@@ -1,35 +1,137 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { User, AuthTokens } from '../../types/auth';
+import type { User, AuthTokens, Organization } from '../../types/auth';
 
 interface AuthState {
   user: User | null;
   tokens: AuthTokens | null;
+  organization: Organization | null;
   isAuthenticated: boolean;
   setAuth: (user: User, tokens: AuthTokens) => void;
+  setOrganization: (organization: Organization) => void;
+  updateUser: (user: Partial<User>) => void;
   logout: () => void;
   updateTokens: (tokens: AuthTokens) => void;
+  // Permission utilities
+  isPlatformAdmin: () => boolean;
+  isOrgAdmin: () => boolean;
+  hasRole: (roleName: string) => boolean;
+  hasAnyRole: (roleNames: string[]) => boolean;
+  canAccess: (feature: string) => boolean;
 }
+
+// Feature access mapping based on roles
+const featureAccessMap: Record<string, string[]> = {
+  'admin-dashboard': ['Super Admin'],
+  'org-management': ['Super Admin', 'Organization Owner', 'Organization Admin'],
+  'user-management': ['Super Admin', 'Organization Owner', 'Organization Admin'],
+  'invite-users': ['Super Admin', 'Organization Owner', 'Organization Admin'],
+  'audit-logs': ['Super Admin', 'Organization Owner', 'Organization Admin'],
+  'subscription-management': ['Super Admin'],
+  'agent-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
+  'tool-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
+  'deployment-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Operator'],
+  'analytics': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer', 'Operator', 'Viewer'],
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       tokens: null,
+      organization: null,
       isAuthenticated: false,
+
       setAuth: (user, tokens) =>
         set({ user, tokens, isAuthenticated: true }),
+
+      setOrganization: (organization) =>
+        set({ organization }),
+
+      updateUser: (userData) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...userData } : null,
+        })),
+
       logout: () =>
-        set({ user: null, tokens: null, isAuthenticated: false }),
+        set({ user: null, tokens: null, organization: null, isAuthenticated: false }),
+
       updateTokens: (tokens) => set({ tokens }),
+
+      // Permission utilities
+      isPlatformAdmin: () => {
+        const { user } = get();
+        return user?.isPlatformAdmin ?? false;
+      },
+
+      isOrgAdmin: () => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.isPlatformAdmin) return true;
+        const adminRoles = ['Organization Owner', 'Organization Admin'];
+        const roles = user.roles || [];
+        // Also check legacy role field for backwards compatibility
+        if (user.role === 'admin') return true;
+        return roles.some(role => adminRoles.includes(role));
+      },
+
+      hasRole: (roleName: string) => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.isPlatformAdmin) return true; // Platform admins have all roles
+        const roles = user.roles || [];
+        return roles.includes(roleName);
+      },
+
+      hasAnyRole: (roleNames: string[]) => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.isPlatformAdmin) return true;
+        const roles = user.roles || [];
+        return roleNames.some(role => roles.includes(role));
+      },
+
+      canAccess: (feature: string) => {
+        const { user } = get();
+        if (!user) return false;
+        if (user.isPlatformAdmin) return true;
+        // Check legacy role for backwards compatibility
+        if (user.role === 'admin') return true;
+
+        const allowedRoles = featureAccessMap[feature];
+        if (!allowedRoles) return true; // If feature not in map, allow by default
+
+        const roles = user.roles || [];
+        return roles.some(role => allowedRoles.includes(role));
+      },
     }),
     {
       name: 'auth-storage',
       partialize: (state) => ({
         user: state.user,
         tokens: state.tokens,
+        organization: state.organization,
         isAuthenticated: state.isAuthenticated,
       }),
     }
   )
 );
+
+// Custom hook for checking permissions in components
+export const usePermissions = () => {
+  const user = useAuthStore((state) => state.user);
+  const isPlatformAdmin = useAuthStore((state) => state.isPlatformAdmin);
+  const isOrgAdmin = useAuthStore((state) => state.isOrgAdmin);
+  const hasRole = useAuthStore((state) => state.hasRole);
+  const hasAnyRole = useAuthStore((state) => state.hasAnyRole);
+  const canAccess = useAuthStore((state) => state.canAccess);
+
+  return {
+    user,
+    isPlatformAdmin: isPlatformAdmin(),
+    isOrgAdmin: isOrgAdmin(),
+    hasRole,
+    hasAnyRole,
+    canAccess,
+  };
+};

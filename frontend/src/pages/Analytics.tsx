@@ -7,6 +7,7 @@ import {
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
+import { apiClient } from '../services/api';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -46,12 +47,7 @@ export const Analytics: React.FC = () => {
         params.append('end_date', dateRange[1].toISOString());
       }
 
-      const response = await fetch(`/api/v1/analytics?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics');
-      }
-
-      const analyticsData = await response.json();
+      const analyticsData = await apiClient.get(`/analytics?${params}`);
       setData(analyticsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

@@ -62,10 +62,16 @@ export const toolService = {
   },
 
   /**
-   * Get all custom tools
+   * Get all custom tools, optionally filtered by type
    */
-  getTools: async (skip: number = 0, limit: number = 100): Promise<ToolListResponse> => {
-    return apiClient.get<ToolListResponse>(`/tools/?skip=${skip}&limit=${limit}`);
+  getTools: async (skip: number = 0, limit: number = 100, toolType?: string): Promise<ToolListResponse> => {
+    const params = new URLSearchParams();
+    params.append('skip', skip.toString());
+    params.append('limit', limit.toString());
+    if (toolType) {
+      params.append('tool_type', toolType);
+    }
+    return apiClient.get<ToolListResponse>(`/tools/?${params.toString()}`);
   },
 
   /**

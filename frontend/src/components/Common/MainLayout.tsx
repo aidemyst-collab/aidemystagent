@@ -1,17 +1,22 @@
-import { Layout, Menu, Avatar, Dropdown, Typography } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Typography, Tag } from 'antd';
 import {
   DashboardOutlined,
   RocketOutlined,
   ToolOutlined,
+  KeyOutlined,
   UserOutlined,
   LogoutOutlined,
   SettingOutlined,
   FolderOutlined,
   CloudOutlined,
   BarChartOutlined,
+  CrownOutlined,
+  TeamOutlined,
+  MailOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../../features/auth/authStore';
+import { useAuthStore, usePermissions } from '../../features/auth/authStore';
 import { useLogout } from '../../features/auth/authHooks';
 import type { MenuProps } from 'antd';
 
@@ -22,6 +27,7 @@ export const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuthStore();
+  const { isPlatformAdmin, isOrgAdmin, canAccess } = usePermissions();
   const { mutate: logout } = useLogout();
 
   const menuItems: MenuProps['items'] = [
@@ -44,6 +50,12 @@ export const MainLayout = () => {
       onClick: () => navigate('/tools'),
     },
     {
+      key: '/credentials',
+      icon: <KeyOutlined />,
+      label: 'Credentials',
+      onClick: () => navigate('/credentials'),
+    },
+    {
       key: '/templates',
       icon: <FolderOutlined />,
       label: 'Templates',
@@ -61,13 +73,47 @@ export const MainLayout = () => {
       label: 'Analytics',
       onClick: () => navigate('/analytics'),
     },
-    ...(user?.role === 'admin'
+    // Organization admin section
+    ...(canAccess('user-management')
       ? [
+          { type: 'divider' as const },
           {
             key: '/users',
-            icon: <UserOutlined />,
+            icon: <TeamOutlined />,
             label: 'Users',
             onClick: () => navigate('/users'),
+          },
+        ]
+      : []),
+    ...(canAccess('invite-users')
+      ? [
+          {
+            key: '/invitations',
+            icon: <MailOutlined />,
+            label: 'Invitations',
+            onClick: () => navigate('/invitations'),
+          },
+        ]
+      : []),
+    ...(canAccess('audit-logs')
+      ? [
+          {
+            key: '/audit-logs',
+            icon: <AuditOutlined />,
+            label: 'Audit Logs',
+            onClick: () => navigate('/audit-logs'),
+          },
+        ]
+      : []),
+    // Platform admin section
+    ...(isPlatformAdmin
+      ? [
+          { type: 'divider' as const },
+          {
+            key: '/admin',
+            icon: <CrownOutlined />,
+            label: 'Platform Admin',
+            onClick: () => navigate('/admin'),
           },
         ]
       : []),
@@ -130,17 +176,20 @@ export const MainLayout = () => {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            height: '64px',
           }}
         >
           <div />
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <div className="flex items-center cursor-pointer">
-              <Avatar icon={<UserOutlined />} />
-              <div className="ml-2">
-                <Text strong>{user?.email}</Text>
-                <br />
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {user?.role}
+            <div className="flex items-center gap-3 cursor-pointer">
+              <Avatar size={40} icon={<UserOutlined />} />
+              <div className="flex flex-col justify-center">
+                <div className="flex items-center gap-2">
+                  <Text strong className="leading-tight">{user?.fullName || user?.email}</Text>
+                  {isPlatformAdmin && <Tag color="gold" style={{ margin: 0 }}>Admin</Tag>}
+                </div>
+                <Text type="secondary" className="text-xs leading-tight">
+                  {user?.roles?.length ? user.roles[0] : user?.role || 'Member'}
                 </Text>
               </div>
             </div>

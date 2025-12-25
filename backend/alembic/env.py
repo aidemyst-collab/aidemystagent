@@ -12,6 +12,7 @@ from app.models.agent import Agent, AgentExecution
 from app.models.tool import Tool, ToolExecution
 from app.models.deployment import Deployment
 from app.models.version import AgentVersion
+from app.models.credential import Credential
 
 # Alembic Config object
 config = context.config

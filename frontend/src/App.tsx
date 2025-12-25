@@ -9,10 +9,15 @@ import { Agents } from './pages/Agents';
 import { WorkflowBuilder } from './pages/WorkflowBuilder';
 import { AgentTest } from './pages/AgentTest';
 import { Tools } from './pages/Tools';
+import { Credentials } from './pages/Credentials';
 import { Templates } from './pages/Templates';
 import { Deployments } from './pages/Deployments';
 import { Analytics } from './pages/Analytics';
 import { Users } from './pages/Users';
+import AdminDashboard from './pages/AdminDashboard';
+import Invitations from './pages/Invitations';
+import AuditLogs from './pages/AuditLogs';
+import AcceptInvitation from './pages/AcceptInvitation';
 import { MainLayout } from './components/Common/MainLayout';
 import { ProtectedRoute } from './components/Common/ProtectedRoute';
 
@@ -43,6 +48,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/invitations/accept/:token" element={<AcceptInvitation />} />
 
               {/* Protected routes */}
               <Route
@@ -60,10 +66,15 @@ function App() {
                 <Route path="agents/:id/edit" element={<WorkflowBuilder />} />
                 <Route path="agents/:id/test" element={<AgentTest />} />
                 <Route path="tools" element={<Tools />} />
+                <Route path="credentials" element={<Credentials />} />
                 <Route path="templates" element={<Templates />} />
                 <Route path="deployments" element={<Deployments />} />
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="users" element={<Users />} />
+                <Route path="users/create" element={<Register />} />
+                <Route path="invitations" element={<Invitations />} />
+                <Route path="audit-logs" element={<AuditLogs />} />
+                <Route path="admin" element={<AdminDashboard />} />
               </Route>
 
               {/* Catch all */}

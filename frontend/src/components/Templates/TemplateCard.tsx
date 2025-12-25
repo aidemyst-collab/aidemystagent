@@ -51,7 +51,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
             <p className="text-gray-600 mb-3">{description}</p>
             <div>
               <Tag color="blue">{category}</Tag>
-              {tags.map((tag) => (
+              {tags?.map((tag) => (
                 <Tag key={tag}>{tag}</Tag>
               ))}
             </div>

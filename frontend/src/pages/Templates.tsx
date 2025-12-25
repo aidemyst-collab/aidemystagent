@@ -4,6 +4,7 @@ import { SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { TemplateCard } from '../components/Templates/TemplateCard';
 import { TemplatePreviewModal } from '../components/Templates/TemplatePreviewModal';
+import { apiClient } from '../services/api';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -37,11 +38,7 @@ export const Templates: React.FC = () => {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/v1/templates');
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-      const data = await response.json();
+      const data = await apiClient.get('/templates');
       setTemplates(data.templates);
       setFilteredTemplates(data.templates);
     } catch (err) {
@@ -75,18 +72,7 @@ export const Templates: React.FC = () => {
 
   const handleClone = async (templateId: string) => {
     try {
-      const response = await fetch(`/api/v1/templates/${templateId}/clone`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to clone template');
-      }
-
-      const data = await response.json();
+      const data = await apiClient.post(`/templates/${templateId}/clone`);
       message.success(`Template cloned successfully: ${data.name}`);
 
       // Navigate to the agent builder with the new agent

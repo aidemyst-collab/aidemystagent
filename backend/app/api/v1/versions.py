@@ -7,12 +7,14 @@ from uuid import UUID
 from app.core.database import get_db
 from app.models.version import AgentVersion
 from app.models.agent import Agent
+from app.models.user import User
 from app.schemas.version import (
     VersionCreate,
     VersionResponse,
     VersionList,
     VersionCompare,
 )
+from app.api.deps import get_current_active_user, require_permission
 
 router = APIRouter()
 
@@ -22,16 +24,30 @@ async def create_version(
     agent_id: UUID,
     version: VersionCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:update")),
 ):
     """Create a new version for an agent."""
     # Verify agent exists
-    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
     agent = result.scalar_one_or_none()
 
     if not agent:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found",
+        )
+
+    # Check organization access
+    if agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
         )
 
     # Get the next version number
@@ -43,9 +59,6 @@ async def create_version(
     max_version = count_result.scalar()
     next_version = (max_version or 0) + 1
 
-    # TODO: Get current user from auth
-    user_id = "00000000-0000-0000-0000-000000000000"
-
     # Create version
     db_version = AgentVersion(
         agent_id=agent_id,
@@ -54,7 +67,7 @@ async def create_version(
         config=version.config,
         description=version.description,
         changelog=version.changelog,
-        created_by=user_id,
+        created_by=current_user.id,
     )
 
     db.add(db_version)
@@ -75,16 +88,30 @@ async def list_versions(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:read")),
 ):
     """List all versions for an agent."""
     # Verify agent exists
-    result = await db.execute(select(Agent).where(Agent.id == agent_id))
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
     agent = result.scalar_one_or_none()
 
     if not agent:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found",
+        )
+
+    # Check organization access
+    if agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
         )
 
     # Get versions
@@ -113,8 +140,25 @@ async def get_version(
     agent_id: UUID,
     version_number: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:read")),
 ):
     """Get a specific version of an agent."""
+    # First check agent access
+    agent_result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
+    agent = agent_result.scalar_one_or_none()
+
+    if not agent or agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
+        )
+
     result = await db.execute(
         select(AgentVersion).where(
             AgentVersion.agent_id == agent_id,
@@ -138,8 +182,32 @@ async def restore_version(
     version_number: int,
     description: str = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:update")),
 ):
     """Restore an agent to a previous version."""
+    # Get the agent first to check access
+    agent_result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
+    agent = agent_result.scalar_one_or_none()
+
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent not found",
+        )
+
+    # Check organization access
+    if agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
+        )
+
     # Get the version to restore
     result = await db.execute(
         select(AgentVersion).where(
@@ -155,16 +223,6 @@ async def restore_version(
             detail="Version not found",
         )
 
-    # Get the agent
-    agent_result = await db.execute(select(Agent).where(Agent.id == agent_id))
-    agent = agent_result.scalar_one_or_none()
-
-    if not agent:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
-        )
-
     # Create a new version with the old config
     count_result = await db.execute(
         select(func.max(AgentVersion.version_number)).where(
@@ -173,9 +231,6 @@ async def restore_version(
     )
     max_version = count_result.scalar()
     next_version = (max_version or 0) + 1
-
-    # TODO: Get current user from auth
-    user_id = "00000000-0000-0000-0000-000000000000"
 
     changelog = f"Restored from version {version_number}"
     if old_version.version_tag:
@@ -188,7 +243,7 @@ async def restore_version(
         config=old_version.config,
         description=description or f"Restored version {version_number}",
         changelog=changelog,
-        created_by=user_id,
+        created_by=current_user.id,
     )
 
     db.add(db_version)
@@ -209,6 +264,8 @@ async def compare_versions(
     version1: int,
     version2: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:read")),
 ):
     """Compare two versions of an agent."""
     # Get both versions
@@ -271,8 +328,25 @@ async def delete_version(
     agent_id: UUID,
     version_number: int,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("agents:delete")),
 ):
     """Delete a specific version (not recommended for production)."""
+    # Check agent access first
+    agent_result = await db.execute(
+        select(Agent).where(
+            Agent.id == agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
+    agent = agent_result.scalar_one_or_none()
+
+    if not agent or agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
+        )
+
     result = await db.execute(
         select(AgentVersion).where(
             AgentVersion.agent_id == agent_id,

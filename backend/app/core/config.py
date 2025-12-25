@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 0
 
+    # RAG / pgvector Database (separate database for vector storage)
+    PGVECTOR_DATABASE_URL: str = "postgresql+asyncpg://demystrag_user:demystrag_password@localhost:5433/demystrag"
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_TTL: int = 3600
@@ -27,8 +30,8 @@ class Settings(BaseSettings):
     # JWT
     SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours (was 15 minutes)
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days (was 7 days)
 
     # LLM Providers
     OPENAI_API_KEY: str = ""
@@ -39,6 +42,13 @@ class Settings(BaseSettings):
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
+
+    # File Reader Settings
+    FILE_READER_ALLOWED_DIRS: List[str] = ["/var/data", "./data", "./uploads"]
+    FILE_READER_MAX_FILE_SIZE_MB: int = 10
+    FILE_READER_FOLLOW_SYMLINKS: bool = False
+    FILE_READER_ALLOW_HIDDEN_FILES: bool = False
+    FILE_READER_TIMEOUT_SECONDS: int = 30
 
     class Config:
         env_file = ".env"

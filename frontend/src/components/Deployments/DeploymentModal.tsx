@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Modal, Form, Select, Input, Switch, message } from 'antd';
+import { apiClient } from '../../services/api';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -27,26 +28,16 @@ export const DeploymentModal: React.FC<DeploymentModalProps> = ({
       const values = await form.validateFields();
       setLoading(true);
 
-      const response = await fetch('/api/v1/deployments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await apiClient.post('/deployments', {
+        agent_id: agentId,
+        version: values.version,
+        environment: values.environment,
+        config: {
+          auto_scale: values.auto_scale,
+          max_concurrent: values.max_concurrent,
+          timeout: values.timeout,
         },
-        body: JSON.stringify({
-          agent_id: agentId,
-          version: values.version,
-          environment: values.environment,
-          config: {
-            auto_scale: values.auto_scale,
-            max_concurrent: values.max_concurrent,
-            timeout: values.timeout,
-          },
-        }),
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to create deployment');
-      }
 
       message.success('Deployment created successfully');
       form.resetFields();

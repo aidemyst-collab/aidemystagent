@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Layout, Button, Input, message, Modal, Form, InputNumber, Select, Tooltip, Spin } from 'antd';
 import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
 import { PropertyPanel } from '../components/AgentBuilder/PropertyPanel';
@@ -11,6 +12,7 @@ const { Header, Sider, Content } = Layout;
 const { TextArea } = Input;
 
 export const AgentBuilder = () => {
+  const navigate = useNavigate();
   const [agentId, setAgentId] = useState<string | null>(null);
   const [agentName, setAgentName] = useState('');
   const [agentDescription, setAgentDescription] = useState('');
@@ -303,13 +305,10 @@ export const AgentBuilder = () => {
         title="Create New Agent"
         open={createModalVisible}
         onOk={handleCreateAgent}
-        onCancel={() => {
-          message.warning('Please create an agent to continue');
-        }}
-        closable={false}
-        maskClosable={false}
+        onCancel={() => navigate('/agents')}
         width={500}
         okText="Create Agent"
+        cancelText="Cancel"
       >
         <Form
           form={createForm}

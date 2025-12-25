@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Spin, Alert, Descriptions, Tag, Divider } from 'antd';
 import { ReactFlow, Background, Controls, MiniMap } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { apiClient } from '../../services/api';
 
 interface TemplatePreviewModalProps {
   templateId: string | null;
@@ -40,11 +41,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/v1/templates/${templateId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch template details');
-      }
-      const data = await response.json();
+      const data = await apiClient.get(`/templates/${templateId}`);
       setTemplate(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');

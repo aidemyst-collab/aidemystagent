@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, UUID4
+from pydantic import BaseModel, EmailStr, UUID4, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
 from app.models.user import UserRole
@@ -10,6 +10,8 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    organization_id: str  # Required: user must select an organization
+    role: Optional[UserRole] = None  # Optional: defaults to CREATOR if not provided
 
 
 class UserLogin(BaseModel):
@@ -20,17 +22,23 @@ class UserLogin(BaseModel):
 class UserResponse(UserBase):
     id: UUID4
     role: UserRole
-    organization_id: UUID4
-    created_at: datetime
+    organization_id: UUID4 = Field(..., serialization_alias="organizationId")
+    created_at: datetime = Field(..., serialization_alias="createdAt")
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True
+    )
 
 
 class TokenPair(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
+    access_token: str = Field(..., serialization_alias="accessToken")
+    refresh_token: str = Field(..., serialization_alias="refreshToken")
+    token_type: str = Field(default="bearer", serialization_alias="tokenType")
+
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 
 class LoginResponse(BaseModel):

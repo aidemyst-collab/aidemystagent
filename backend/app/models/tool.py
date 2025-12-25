@@ -12,6 +12,7 @@ class ToolType(str, enum.Enum):
     BUILT_IN = "built-in"
     API = "api"
     CUSTOM = "custom"
+    MCP = "mcp"
 
 
 class ToolVisibility(str, enum.Enum):

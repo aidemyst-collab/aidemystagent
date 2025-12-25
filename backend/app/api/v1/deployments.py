@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from typing import List
 from uuid import UUID
 from datetime import datetime
@@ -9,11 +9,16 @@ import secrets
 from app.core.database import get_db
 from app.models.deployment import Deployment, DeploymentStatus, DeploymentEnvironment
 from app.models.agent import Agent
+from app.models.user import User
 from app.schemas.deployment import (
     DeploymentCreate,
     DeploymentUpdate,
     DeploymentResponse,
     DeploymentList,
+)
+from app.api.deps import (
+    get_current_active_user,
+    require_permission,
 )
 
 router = APIRouter()
@@ -23,10 +28,17 @@ router = APIRouter()
 async def create_deployment(
     deployment: DeploymentCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:create")),
 ):
     """Create a new deployment for an agent."""
-    # Verify agent exists
-    result = await db.execute(select(Agent).where(Agent.id == deployment.agent_id))
+    # Verify agent exists and user has access
+    result = await db.execute(
+        select(Agent).where(
+            Agent.id == deployment.agent_id,
+            Agent.deleted_at.is_(None),
+        )
+    )
     agent = result.scalar_one_or_none()
 
     if not agent:
@@ -35,8 +47,12 @@ async def create_deployment(
             detail="Agent not found",
         )
 
-    # TODO: Get current user from auth
-    user_id = "00000000-0000-0000-0000-000000000000"
+    # Check organization access
+    if agent.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this agent",
+        )
 
     # Generate API key for the deployment
     api_key = f"sk-{secrets.token_urlsafe(32)}"
@@ -47,13 +63,14 @@ async def create_deployment(
     # Create deployment
     db_deployment = Deployment(
         agent_id=deployment.agent_id,
+        organization_id=current_user.organization_id,
         version=deployment.version,
         environment=deployment.environment,
         status=DeploymentStatus.PENDING,
         endpoint_url=endpoint_url,
         api_key=api_key,
         config=deployment.config,
-        deployed_by=user_id,
+        deployed_by=current_user.id,
     )
 
     db.add(db_deployment)
@@ -77,9 +94,19 @@ async def list_deployments(
     skip: int = 0,
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:read")),
 ):
-    """List all deployments with optional filters."""
-    query = select(Deployment).order_by(desc(Deployment.created_at))
+    """List all deployments with optional filters (scoped to organization)."""
+    # Base query with organization scoping
+    query = (
+        select(Deployment)
+        .where(
+            Deployment.organization_id == current_user.organization_id,
+            Deployment.deleted_at.is_(None),
+        )
+        .order_by(desc(Deployment.created_at))
+    )
 
     if agent_id:
         query = query.where(Deployment.agent_id == agent_id)
@@ -93,17 +120,21 @@ async def list_deployments(
     result = await db.execute(query)
     deployments = result.scalars().all()
 
-    # Get total count
-    count_query = select(Deployment)
+    # Get total count with same filters
+    count_conditions = [
+        Deployment.organization_id == current_user.organization_id,
+        Deployment.deleted_at.is_(None),
+    ]
     if agent_id:
-        count_query = count_query.where(Deployment.agent_id == agent_id)
+        count_conditions.append(Deployment.agent_id == agent_id)
     if environment:
-        count_query = count_query.where(Deployment.environment == environment)
+        count_conditions.append(Deployment.environment == environment)
     if status_filter:
-        count_query = count_query.where(Deployment.status == status_filter)
+        count_conditions.append(Deployment.status == status_filter)
 
+    count_query = select(func.count(Deployment.id)).where(*count_conditions)
     count_result = await db.execute(count_query)
-    total = len(count_result.scalars().all())
+    total = count_result.scalar() or 0
 
     return DeploymentList(deployments=deployments, total=total)
 
@@ -112,15 +143,29 @@ async def list_deployments(
 async def get_deployment(
     deployment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:read")),
 ):
     """Get a specific deployment by ID."""
-    result = await db.execute(select(Deployment).where(Deployment.id == deployment_id))
+    result = await db.execute(
+        select(Deployment).where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
     deployment = result.scalar_one_or_none()
 
     if not deployment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Deployment not found",
+        )
+
+    # Check organization access
+    if deployment.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
         )
 
     return deployment
@@ -131,15 +176,29 @@ async def update_deployment(
     deployment_id: UUID,
     update: DeploymentUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:update")),
 ):
     """Update a deployment."""
-    result = await db.execute(select(Deployment).where(Deployment.id == deployment_id))
+    result = await db.execute(
+        select(Deployment).where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
     deployment = result.scalar_one_or_none()
 
     if not deployment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Deployment not found",
+        )
+
+    # Check organization access
+    if deployment.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
         )
 
     # Update fields
@@ -162,9 +221,16 @@ async def update_deployment(
 async def delete_deployment(
     deployment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:delete")),
 ):
-    """Delete/stop a deployment."""
-    result = await db.execute(select(Deployment).where(Deployment.id == deployment_id))
+    """Delete/stop a deployment (soft delete)."""
+    result = await db.execute(
+        select(Deployment).where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
     deployment = result.scalar_one_or_none()
 
     if not deployment:
@@ -173,8 +239,16 @@ async def delete_deployment(
             detail="Deployment not found",
         )
 
-    # Mark as stopped instead of deleting
+    # Check organization access
+    if deployment.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
+        )
+
+    # Soft delete
     deployment.status = DeploymentStatus.STOPPED
+    deployment.deleted_at = datetime.utcnow()
     await db.commit()
 
 
@@ -182,15 +256,29 @@ async def delete_deployment(
 async def stop_deployment(
     deployment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:update")),
 ):
     """Stop a running deployment."""
-    result = await db.execute(select(Deployment).where(Deployment.id == deployment_id))
+    result = await db.execute(
+        select(Deployment).where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
     deployment = result.scalar_one_or_none()
 
     if not deployment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Deployment not found",
+        )
+
+    # Check organization access
+    if deployment.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
         )
 
     if deployment.status != DeploymentStatus.ACTIVE:
@@ -210,15 +298,29 @@ async def stop_deployment(
 async def restart_deployment(
     deployment_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("deployments:update")),
 ):
     """Restart a stopped deployment."""
-    result = await db.execute(select(Deployment).where(Deployment.id == deployment_id))
+    result = await db.execute(
+        select(Deployment).where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
     deployment = result.scalar_one_or_none()
 
     if not deployment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Deployment not found",
+        )
+
+    # Check organization access
+    if deployment.organization_id != current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
         )
 
     if deployment.status not in [DeploymentStatus.STOPPED, DeploymentStatus.FAILED]:

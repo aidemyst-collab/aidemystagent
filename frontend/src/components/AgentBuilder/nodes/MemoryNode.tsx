@@ -1,0 +1,13 @@
+import { DatabaseOutlined } from '@ant-design/icons';
+import { AuxiliaryNode } from './AuxiliaryNode';
+import type { NodeProps } from '@xyflow/react';
+
+export const MemoryNode = (props: NodeProps) => {
+  return (
+    <AuxiliaryNode
+      {...props}
+      icon={<DatabaseOutlined />}
+      color="#fa8c16"
+    />
+  );
+};

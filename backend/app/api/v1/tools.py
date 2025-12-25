@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
+from datetime import datetime
 
 from app.core.database import get_db
 from app.models.tool import Tool
 from app.models.user import User
-from app.services.tools import tool_registry
+from app.services.tools import tool_registry, APIIntegrationTool
 from app.schemas.tool import (
     ToolCreate,
     ToolUpdate,
@@ -16,21 +17,34 @@ from app.schemas.tool import (
     ToolExecuteRequest,
     ToolExecuteResponse,
 )
-from app.api.deps import get_current_user
+from app.api.deps import (
+    get_current_active_user,
+    get_permission_service,
+    require_permission,
+)
+from app.services.permission_service import PermissionService
 
 
 router = APIRouter()
 
 
 @router.get("/built-in")
-async def list_builtin_tools():
+async def list_builtin_tools(
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:read")),
+):
     """List all built-in tools."""
     tools = tool_registry.list_tools()
     return {"tools": tools}
 
 
 @router.post("/built-in/{tool_name}/execute")
-async def execute_builtin_tool(tool_name: str, request: ToolExecuteRequest):
+async def execute_builtin_tool(
+    tool_name: str,
+    request: ToolExecuteRequest,
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:read")),
+):
     """Execute a built-in tool."""
     result = await tool_registry.execute_tool(tool_name, request.input_data)
     return result
@@ -39,27 +53,30 @@ async def execute_builtin_tool(tool_name: str, request: ToolExecuteRequest):
 @router.get("/", response_model=ToolListResponse)
 async def list_tools(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:read")),
     skip: int = 0,
     limit: int = 100,
+    tool_type: str = None,
 ):
-    """List all custom tools from database."""
-    # Get tools the user has access to (their own + organization + public)
-    query = select(Tool).where(
+    """List all custom tools from database, optionally filtered by type."""
+    # Build base query for tools the user has access to
+    base_conditions = [
         (Tool.creator_id == current_user.id) |
         (Tool.organization_id == current_user.organization_id) |
         (Tool.visibility == "public")
-    ).offset(skip).limit(limit)
+    ]
 
+    # Add type filter if provided
+    if tool_type:
+        base_conditions.append(Tool.type == tool_type)
+
+    query = select(Tool).where(*base_conditions).offset(skip).limit(limit)
     result = await db.execute(query)
     tools = result.scalars().all()
 
     # Get total count
-    count_query = select(func.count(Tool.id)).where(
-        (Tool.creator_id == current_user.id) |
-        (Tool.organization_id == current_user.organization_id) |
-        (Tool.visibility == "public")
-    )
+    count_query = select(func.count(Tool.id)).where(*base_conditions)
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
@@ -70,7 +87,8 @@ async def list_tools(
 async def get_tool(
     tool_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:read")),
 ):
     """Get tool by ID."""
     result = await db.execute(select(Tool).where(Tool.id == tool_id))
@@ -100,7 +118,8 @@ async def get_tool(
 async def create_tool(
     tool_data: ToolCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:create")),
 ):
     """Create a custom tool."""
     # Check if tool name already exists for this user/org
@@ -142,7 +161,8 @@ async def update_tool(
     tool_id: UUID,
     tool_data: ToolUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:update")),
 ):
     """Update a tool."""
     result = await db.execute(select(Tool).where(Tool.id == tool_id))
@@ -176,7 +196,8 @@ async def update_tool(
 async def delete_tool(
     tool_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:delete")),
 ):
     """Delete a tool."""
     result = await db.execute(select(Tool).where(Tool.id == tool_id))
@@ -206,7 +227,8 @@ async def test_tool(
     tool_id: UUID,
     request: ToolExecuteRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:execute")),
 ):
     """Test a custom tool."""
     result = await db.execute(select(Tool).where(Tool.id == tool_id))
@@ -239,11 +261,23 @@ async def test_tool(
                 error=None,
             )
         elif tool.type == "api":
-            # TODO: Execute API call
+            # Execute API call using APIIntegrationTool
+            api_config = tool.config.get("api", {})
+            api_tool = APIIntegrationTool(
+                name=tool.name,
+                description=tool.description,
+                endpoint=api_config.get("endpoint"),
+                method=api_config.get("method", "GET"),
+                auth_type=api_config.get("auth_type", "none"),
+                headers=api_config.get("headers", {}),
+                timeout=api_config.get("timeout", 30)
+            )
+
+            result = await api_tool.execute(request.input_data)
             return ToolExecuteResponse(
-                success=True,
-                result={"message": "API execution not yet implemented"},
-                error=None,
+                success=result.success,
+                result=result.result,
+                error=result.error,
             )
         elif tool.type == "mcp":
             # TODO: Execute MCP tool
@@ -266,14 +300,17 @@ async def test_tool(
 
 
 @router.get("/categories/list")
-async def list_tool_categories():
+async def list_tool_categories(
+    current_user: User = Depends(get_current_active_user),
+    _: None = Depends(require_permission("tools:read")),
+):
     """List tool categories."""
     return {
         "categories": [
             {
                 "name": "Built-in",
                 "description": "Pre-built tools for common operations",
-                "tools": ["calculator", "datetime", "json_parser", "web_search"]
+                "tools": ["calculator", "datetime", "json_parser", "web_search", "api_integration"]
             },
             {
                 "name": "API Integration",

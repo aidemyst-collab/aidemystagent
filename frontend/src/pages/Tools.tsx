@@ -24,6 +24,7 @@ export const Tools = () => {
   const [testerVisible, setTesterVisible] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editingTool, setEditingTool] = useState<CustomTool | null>(null);
+  const [selectedToolType, setSelectedToolType] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAllTools();
@@ -76,8 +77,9 @@ export const Tools = () => {
     // TODO: Show tool details modal
   };
 
-  const handleCreateTool = () => {
+  const handleCreateTool = (toolType: string | null = null) => {
     setEditingTool(null);
+    setSelectedToolType(toolType);
     setCreateModalVisible(true);
   };
 
@@ -101,27 +103,38 @@ export const Tools = () => {
     fetchCustomTools();
   };
 
-  const renderToolGrid = (tools: CustomTool[], category: string) => {
-    if (tools.length === 0) {
-      return <Empty description={`No ${category.toLowerCase()} tools created yet`} />;
-    }
-
+  const renderToolGrid = (tools: CustomTool[], category: string, toolType: string) => {
     return (
-      <Row gutter={[16, 16]}>
-        {tools.map((tool) => (
-          <Col key={tool.id} xs={24} sm={12} lg={8} xl={6}>
-            <ToolCard
-              name={tool.name}
-              description={tool.description}
-              category={category}
-              onTest={() => handleTest({ name: tool.name, description: tool.description, schema: {} })}
-              onDetails={() => handleDetails({ name: tool.name, description: tool.description, schema: {} })}
-              onEdit={() => handleEditTool(tool)}
-              onDelete={() => handleDeleteTool(tool.id)}
-            />
-          </Col>
-        ))}
-      </Row>
+      <div>
+        <div className="flex justify-end mb-4">
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => handleCreateTool(toolType)}
+          >
+            Create {category} Tool
+          </Button>
+        </div>
+        {tools.length === 0 ? (
+          <Empty description={`No ${category.toLowerCase()} tools created yet`} />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {tools.map((tool) => (
+              <Col key={tool.id} xs={24} sm={12} lg={8} xl={6}>
+                <ToolCard
+                  name={tool.name}
+                  description={tool.description}
+                  category={category}
+                  onTest={() => handleTest({ name: tool.name, description: tool.description, schema: {} })}
+                  onDetails={() => handleDetails({ name: tool.name, description: tool.description, schema: {} })}
+                  onEdit={() => handleEditTool(tool)}
+                  onDelete={() => handleDeleteTool(tool.id)}
+                />
+              </Col>
+            ))}
+          </Row>
+        )}
+      </div>
     );
   };
 
@@ -135,21 +148,11 @@ export const Tools = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <Title level={2} className="mb-2">Tools</Title>
-          <p className="text-gray-600">
-            Browse and test available tools for your agents
-          </p>
-        </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleCreateTool}
-          size="large"
-        >
-          Create Tool
-        </Button>
+      <div className="mb-6">
+        <Title level={2} className="mb-2">Tools</Title>
+        <p className="text-gray-600">
+          Browse and test available tools for your agents
+        </p>
       </div>
 
       <Tabs
@@ -183,17 +186,17 @@ export const Tools = () => {
           {
             key: 'custom',
             label: `Custom Tools (${customTools.length})`,
-            children: renderToolGrid(customTools, 'Custom'),
+            children: renderToolGrid(customTools, 'Custom', 'custom'),
           },
           {
             key: 'api',
             label: `API Integration (${apiTools.length})`,
-            children: renderToolGrid(apiTools, 'API Integration'),
+            children: renderToolGrid(apiTools, 'API', 'api'),
           },
           {
             key: 'mcp',
             label: `MCP Tools (${mcpTools.length})`,
-            children: renderToolGrid(mcpTools, 'MCP'),
+            children: renderToolGrid(mcpTools, 'MCP', 'mcp'),
           },
         ]}
       />
@@ -215,9 +218,11 @@ export const Tools = () => {
         onClose={() => {
           setCreateModalVisible(false);
           setEditingTool(null);
+          setSelectedToolType(null);
         }}
         onSuccess={handleModalSuccess}
         initialData={editingTool}
+        preSelectedType={selectedToolType}
       />
     </div>
   );

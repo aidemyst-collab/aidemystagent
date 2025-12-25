@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Card, Input, Button, Typography, Divider, Tag, Spin } from 'antd';
-import { SendOutlined, ClockCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { Card, Input, Button, Typography, Divider, Tag, Spin, Select, Alert, Tooltip } from 'antd';
+import { SendOutlined, ClockCircleOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
+import { workflowService } from '../../features/workflows/workflowService';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
+
+type InputMode = 'chat' | 'json' | 'form';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,14 +17,24 @@ interface Message {
 interface PlaygroundProps {
   agentId: string;
   agentName: string;
+  defaultMode?: InputMode;
 }
 
-export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
+// Generate a random session ID
+const generateSessionId = () => {
+  return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+};
+
+export const AgentPlayground = ({ agentId, agentName, defaultMode = 'chat' }: PlaygroundProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [inputMode, setInputMode] = useState<InputMode>(defaultMode);
+  const [jsonInput, setJsonInput] = useState('{}');
   const [isLoading, setIsLoading] = useState(false);
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [tokensUsed, setTokensUsed] = useState<number | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState(generateSessionId());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -33,41 +46,75 @@ export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    setValidationError(null);
+
+    // Get input based on mode
+    let inputValue: any;
+    let displayContent: string;
+
+    try {
+      if (inputMode === 'chat') {
+        if (!input.trim()) return;
+        inputValue = input;
+        displayContent = input;
+      } else if (inputMode === 'json') {
+        if (!jsonInput.trim()) return;
+        inputValue = JSON.parse(jsonInput);
+        displayContent = jsonInput;
+      } else {
+        // form mode - not implemented in this simple version
+        if (!jsonInput.trim()) return;
+        inputValue = JSON.parse(jsonInput);
+        displayContent = jsonInput;
+      }
+    } catch (error) {
+      setValidationError('Invalid JSON format');
+      return;
+    }
+
+    if (isLoading) return;
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: displayContent,
       timestamp: new Date(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setJsonInput('{}');
     setIsLoading(true);
 
     try {
       const startTime = performance.now();
 
-      const response = await fetch(`/api/v1/execute/${agentId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ input: input }),
-      });
+      // Use the workflow service to execute the agent
+      const data = await workflowService.executeWorkflow(agentId, typeof inputValue === 'string' ? inputValue : JSON.stringify(inputValue));
 
-      const data = await response.json();
       const endTime = performance.now();
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: data.output || 'No response',
-        timestamp: new Date(),
-      };
+      // Check if validation failed
+      if (data.input_metadata && !data.input_metadata.validation_passed) {
+        const errorMsg = data.input_metadata.error || 'Input validation failed';
+        setValidationError(errorMsg);
 
-      setMessages(prev => [...prev, assistantMessage]);
-      setExecutionTime(Math.round(endTime - startTime));
-      setTokensUsed(data.tokens_used || 0);
+        const errorMessage: Message = {
+          role: 'assistant',
+          content: `Validation Error: ${errorMsg}`,
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } else {
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.output || 'No response',
+          timestamp: new Date(),
+        };
+
+        setMessages(prev => [...prev, assistantMessage]);
+        setExecutionTime(Math.round(endTime - startTime));
+        setTokensUsed(data.tokens_used || 0);
+      }
     } catch (error) {
       console.error('Error executing agent:', error);
       const errorMessage: Message = {
@@ -81,11 +128,21 @@ export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleNewSession = () => {
+    setSessionId(generateSessionId());
+    setMessages([]);
+    setInput('');
+    setJsonInput('{}');
+    setExecutionTime(null);
+    setTokensUsed(null);
+    setValidationError(null);
   };
 
   return (
@@ -96,7 +153,12 @@ export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
             <Title level={4} style={{ margin: 0 }}>
               {agentName} - Test Playground
             </Title>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <Tooltip title="Current session ID for conversation memory">
+                <Tag color="purple" style={{ cursor: 'pointer' }}>
+                  Session: {sessionId.substring(0, 16)}...
+                </Tag>
+              </Tooltip>
               {executionTime !== null && (
                 <Tag icon={<ClockCircleOutlined />} color="blue">
                   {executionTime}ms
@@ -107,6 +169,16 @@ export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
                   {tokensUsed} tokens
                 </Tag>
               )}
+              <Tooltip title="Start a new conversation session">
+                <Button
+                  type="text"
+                  icon={<ReloadOutlined />}
+                  onClick={handleNewSession}
+                  size="small"
+                >
+                  New Session
+                </Button>
+              </Tooltip>
             </div>
           </div>
         }
@@ -169,25 +241,70 @@ export const AgentPlayground = ({ agentId, agentName }: PlaygroundProps) => {
 
         {/* Input Area */}
         <div className="p-4 bg-white">
-          <div className="flex gap-2">
-            <TextArea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Type your message here... (Shift+Enter for new line)"
-              autoSize={{ minRows: 2, maxRows: 4 }}
-              disabled={isLoading}
+          <div className="mb-3 flex items-center gap-2">
+            <Text strong>Input Mode:</Text>
+            <Select
+              value={inputMode}
+              onChange={(value) => setInputMode(value)}
+              style={{ width: 150 }}
+              options={[
+                { label: 'Chat', value: 'chat' },
+                { label: 'JSON', value: 'json' },
+                { label: 'Form', value: 'form' },
+              ]}
             />
+          </div>
+
+          {validationError && (
+            <Alert
+              message={validationError}
+              type="error"
+              closable
+              onClose={() => setValidationError(null)}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+
+          <div className="flex gap-2">
+            {inputMode === 'chat' ? (
+              <TextArea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message here... (Shift+Enter for new line)"
+                autoSize={{ minRows: 2, maxRows: 4 }}
+                disabled={isLoading}
+              />
+            ) : (
+              <TextArea
+                value={jsonInput}
+                onChange={(e) => setJsonInput(e.target.value)}
+                placeholder={
+                  inputMode === 'json'
+                    ? '{\n  "key": "value"\n}'
+                    : '{\n  "field1": "value1",\n  "field2": "value2"\n}'
+                }
+                autoSize={{ minRows: 4, maxRows: 8 }}
+                disabled={isLoading}
+                style={{ fontFamily: 'monospace' }}
+              />
+            )}
             <Button
               type="primary"
               icon={isLoading ? <Spin size="small" /> : <SendOutlined />}
               onClick={handleSend}
-              disabled={!input.trim() || isLoading}
+              disabled={isLoading || (inputMode === 'chat' ? !input.trim() : !jsonInput.trim())}
               size="large"
             >
               Send
             </Button>
           </div>
+
+          <Text type="secondary" style={{ fontSize: 11, marginTop: 8, display: 'block' }}>
+            {inputMode === 'chat' && 'Conversational text input'}
+            {inputMode === 'json' && 'Structured JSON data with schema validation'}
+            {inputMode === 'form' && 'Form data as JSON object'}
+          </Text>
         </div>
       </Card>
     </div>

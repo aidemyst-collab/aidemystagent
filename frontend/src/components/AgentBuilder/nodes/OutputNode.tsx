@@ -10,6 +10,7 @@ export const OutputNode = (props: NodeProps) => {
       icon={<ExportOutlined />}
       color="#f5222d"
       hasOutput={false}
+      minWidth={120}
     />
   );
 };

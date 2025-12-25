@@ -1,4 +1,4 @@
-import { useCallback, useState, DragEvent } from 'react';
+import { useCallback, useState, useEffect, DragEvent } from 'react';
 import {
   ReactFlow,
   MiniMap,
@@ -9,27 +9,58 @@ import {
   addEdge,
   BackgroundVariant,
 } from '@xyflow/react';
-import type { Connection, NodeTypes } from '@xyflow/react';
+import type { Connection, NodeTypes, EdgeTypes } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import {
   InputNode,
+  MemoryNode,
   LLMAgentNode,
   RAGRetrieverNode,
   DecisionNode,
   ToolNode,
   OutputNode,
   SubgraphNode,
+  FileReaderNode,
+  StructuredOutputParserNode,
 } from './nodes';
+import { CustomEdge } from './CustomEdge';
 import type { AgentNode, AgentEdge, NodeType } from '../../types/agent';
 
 const nodeTypes: NodeTypes = {
   InputNode,
+  MemoryNode,
   LLMAgentNode,
   RAGRetrieverNode,
   DecisionNode,
   ToolNode,
   OutputNode,
   SubgraphNode,
+  FileReaderNode,
+  StructuredOutputParserNode,
+};
+
+// Map NodeType to component name
+const nodeTypeMapping: Record<string, string> = {
+  'INPUT': 'InputNode',
+  'MEMORY': 'MemoryNode',
+  'LLM_AGENT': 'LLMAgentNode',
+  'RAG_RETRIEVER': 'RAGRetrieverNode',
+  'DECISION': 'DecisionNode',
+  'TOOL': 'ToolNode',
+  'OUTPUT': 'OutputNode',
+  'SUBGRAPH': 'SubgraphNode',
+  'FILE_READER': 'FileReaderNode',
+  'STRUCTURED_OUTPUT_PARSER': 'StructuredOutputParserNode',
+};
+
+const edgeTypes: EdgeTypes = {
+  default: CustomEdge,
+};
+
+const defaultEdgeOptions = {
+  animated: false,
+  style: { stroke: '#b1b1b7', strokeWidth: 2 },
+  type: 'default',
 };
 
 interface AgentCanvasProps {
@@ -50,6 +81,12 @@ export const AgentCanvas = ({
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(initialEdges);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+
+  // Update nodes and edges when props change (e.g., when loading a workflow)
+  useEffect(() => {
+    setNodes(initialNodes as any);
+    setEdges(initialEdges as any);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
 
   const onConnect = useCallback(
     (params: Connection) => {
@@ -83,7 +120,7 @@ export const AgentCanvas = ({
 
       const newNode: AgentNode = {
         id: `${nodeType.toLowerCase()}_${Date.now()}`,
-        type: `${nodeType.charAt(0)}${nodeType.slice(1).toLowerCase()}Node`,
+        type: nodeTypeMapping[nodeType] || 'InputNode',
         position,
         data: { label, type: nodeType as NodeType, config: {} },
       };
@@ -136,8 +173,16 @@ export const AgentCanvas = ({
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         fitView
         attributionPosition="bottom-right"
+        deleteKeyCode="Delete"
+        elementsSelectable={true}
+        nodesConnectable={true}
+        nodesDraggable={true}
+        edgesFocusable={true}
+        edgesReconnectable={true}
       >
         <Controls />
         <MiniMap />

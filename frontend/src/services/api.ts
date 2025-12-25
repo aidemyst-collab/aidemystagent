@@ -6,15 +6,50 @@ interface RequestOptions extends RequestInit {
 }
 
 class ApiClient {
+  private isRefreshing = false;
+  private refreshPromise: Promise<void> | null = null;
+
+  private async refreshToken(): Promise<void> {
+    const { tokens, updateTokens, logout } = useAuthStore.getState();
+
+    if (!tokens?.refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    try {
+      const response = await fetch(getApiUrl('/auth/refresh'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: tokens.refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      updateTokens({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+      });
+    } catch (error) {
+      // If refresh fails, clear auth and force re-login
+      logout();
+      throw error;
+    }
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestOptions = {}
   ): Promise<T> {
     const { skipAuth, ...fetchOptions } = options;
 
-    const headers: HeadersInit = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      ...fetchOptions.headers,
+      ...(fetchOptions.headers as Record<string, string>),
     };
 
     if (!skipAuth) {
@@ -31,6 +66,26 @@ class ApiClient {
 
     const contentType = response.headers.get('content-type');
     const isJson = contentType?.includes('application/json');
+
+    // Handle 401 Unauthorized - attempt token refresh
+    if (response.status === 401 && !skipAuth && !endpoint.includes('/auth/')) {
+      // Prevent multiple simultaneous refresh attempts
+      if (this.isRefreshing) {
+        await this.refreshPromise;
+      } else {
+        this.isRefreshing = true;
+        this.refreshPromise = this.refreshToken();
+        try {
+          await this.refreshPromise;
+        } finally {
+          this.isRefreshing = false;
+          this.refreshPromise = null;
+        }
+      }
+
+      // Retry the original request with the new token
+      return this.request<T>(endpoint, options);
+    }
 
     if (!response.ok) {
       let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
@@ -68,6 +123,14 @@ class ApiClient {
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  patch<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    return this.request<T>(endpoint, {
+      ...options,
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   }

@@ -7,6 +7,8 @@ import {
   ToolOutlined,
   ExportOutlined,
   ApartmentOutlined,
+  FileTextOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import type { NodeType } from '../../types/workflow';
 
@@ -27,6 +29,13 @@ const nodeDefinitions: NodeDefinition[] = [
     icon: <LoginOutlined />,
     color: '#52c41a',
     description: 'Entry point for user requests',
+  },
+  {
+    type: 'MEMORY',
+    label: 'Memory',
+    icon: <DatabaseOutlined />,
+    color: '#fa8c16',
+    description: 'Store and retrieve conversation history',
   },
   {
     type: 'LLM_AGENT',
@@ -69,6 +78,20 @@ const nodeDefinitions: NodeDefinition[] = [
     icon: <ApartmentOutlined />,
     color: '#eb2f96',
     description: 'Nested agent workflow',
+  },
+  {
+    type: 'FILE_READER',
+    label: 'File Reader',
+    icon: <FileTextOutlined />,
+    color: '#3B82F6',
+    description: 'Read files from disk',
+  },
+  {
+    type: 'STRUCTURED_OUTPUT_PARSER',
+    label: 'Parser',
+    icon: <CheckCircleOutlined />,
+    color: '#9333EA',
+    description: 'Parse and validate LLM output to JSON',
   },
 ];
 

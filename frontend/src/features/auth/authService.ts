@@ -17,7 +17,15 @@ export const authService = {
   },
 
   register: async (data: RegisterRequest): Promise<RegisterResponse> => {
-    return apiClient.post<RegisterResponse>('/auth/register', data, { skipAuth: true });
+    // Convert to snake_case for API
+    return apiClient.post<RegisterResponse>('/auth/register', {
+      email: data.email,
+      password: data.password,
+      full_name: data.fullName,
+      organization_id: data.organizationId,
+      organization_name: data.organizationName,
+      role: data.role,
+    }, { skipAuth: true });
   },
 
   logout: async (): Promise<void> => {
@@ -25,7 +33,7 @@ export const authService = {
   },
 
   refreshToken: async (refreshToken: string): Promise<AuthTokens> => {
-    return apiClient.post<AuthTokens>('/auth/refresh', { refreshToken }, { skipAuth: true });
+    return apiClient.post<AuthTokens>('/auth/refresh', { refreshToken: refreshToken }, { skipAuth: true });
   },
 
   resetPassword: async (data: PasswordResetRequest): Promise<void> => {

@@ -1,11 +1,10 @@
 import { DatabaseOutlined } from '@ant-design/icons';
-import { BaseNode } from './BaseNode';
-import { Handle, Position } from '@xyflow/react';
+import { AuxiliaryNode } from './AuxiliaryNode';
 import type { NodeProps } from '@xyflow/react';
 
 export const RAGRetrieverNode = (props: NodeProps) => {
   return (
-    <BaseNode
+    <AuxiliaryNode
       {...props}
       icon={<DatabaseOutlined />}
       color="#722ed1"

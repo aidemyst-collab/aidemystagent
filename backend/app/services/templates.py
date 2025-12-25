@@ -23,6 +23,7 @@ class AgentTemplates:
             "name": "Customer Service Agent",
             "description": "Handles customer inquiries with FAQ retrieval, ticket routing, and sentiment analysis",
             "category": "Customer Support",
+            "tags": ["support", "customer-service", "faq", "sentiment"],
             "config": {
                 "nodes": [
                     {
@@ -115,6 +116,7 @@ class AgentTemplates:
             "name": "Research Agent",
             "description": "Analyzes documents, extracts facts, and generates summaries with citations",
             "category": "Research",
+            "tags": ["research", "analysis", "citations", "documents"],
             "config": {
                 "nodes": [
                     {
@@ -194,6 +196,7 @@ class AgentTemplates:
             "name": "Data Analysis Agent",
             "description": "Interprets queries, performs calculations, and generates insights",
             "category": "Analytics",
+            "tags": ["analytics", "data", "insights", "calculations"],
             "config": {
                 "nodes": [
                     {
@@ -274,6 +277,7 @@ class AgentTemplates:
             "name": "Workflow Agent",
             "description": "Routes tasks, tracks status, and sends notifications across channels",
             "category": "Automation",
+            "tags": ["automation", "workflow", "routing", "notifications"],
             "config": {
                 "nodes": [
                     {
@@ -356,6 +360,7 @@ class AgentTemplates:
             "name": "QA Agent",
             "description": "Validates answers against knowledge base with source verification and confidence scoring",
             "category": "Quality Assurance",
+            "tags": ["qa", "quality", "verification", "knowledge-base"],
             "config": {
                 "nodes": [
                     {
