@@ -72,3 +72,6 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Azure deployment credentials
+.azure-credentials.env
