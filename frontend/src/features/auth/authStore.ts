@@ -6,12 +6,18 @@ interface AuthState {
   user: User | null;
   tokens: AuthTokens | null;
   organization: Organization | null;
+  // Platform admin organization switching
+  switchedOrganization: Organization | null;
   isAuthenticated: boolean;
   setAuth: (user: User, tokens: AuthTokens) => void;
   setOrganization: (organization: Organization) => void;
   updateUser: (user: Partial<User>) => void;
   logout: () => void;
   updateTokens: (tokens: AuthTokens) => void;
+  // Organization switching for platform admins
+  switchOrganization: (org: Organization | null) => void;
+  getEffectiveOrganization: () => Organization | null;
+  getSwitchedOrganizationId: () => string | null;
   // Permission utilities
   isPlatformAdmin: () => boolean;
   isOrgAdmin: () => boolean;
@@ -40,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       tokens: null,
       organization: null,
+      switchedOrganization: null,
       isAuthenticated: false,
 
       setAuth: (user, tokens) =>
@@ -54,9 +61,22 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       logout: () =>
-        set({ user: null, tokens: null, organization: null, isAuthenticated: false }),
+        set({ user: null, tokens: null, organization: null, switchedOrganization: null, isAuthenticated: false }),
 
       updateTokens: (tokens) => set({ tokens }),
+
+      // Organization switching for platform admins
+      switchOrganization: (org) => set({ switchedOrganization: org }),
+
+      getEffectiveOrganization: () => {
+        const { switchedOrganization, organization } = get();
+        return switchedOrganization || organization;
+      },
+
+      getSwitchedOrganizationId: () => {
+        const { switchedOrganization } = get();
+        return switchedOrganization?.id || null;
+      },
 
       // Permission utilities
       isPlatformAdmin: () => {
@@ -111,6 +131,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         tokens: state.tokens,
         organization: state.organization,
+        switchedOrganization: state.switchedOrganization,
         isAuthenticated: state.isAuthenticated,
       }),
     }
@@ -133,5 +154,24 @@ export const usePermissions = () => {
     hasRole,
     hasAnyRole,
     canAccess,
+  };
+};
+
+// Hook for organization switching (platform admins only)
+export const useOrganizationSwitcher = () => {
+  const switchedOrganization = useAuthStore((state) => state.switchedOrganization);
+  const organization = useAuthStore((state) => state.organization);
+  const switchOrganization = useAuthStore((state) => state.switchOrganization);
+  const getEffectiveOrganization = useAuthStore((state) => state.getEffectiveOrganization);
+  const isPlatformAdmin = useAuthStore((state) => state.isPlatformAdmin);
+
+  return {
+    switchedOrganization,
+    originalOrganization: organization,
+    effectiveOrganization: getEffectiveOrganization(),
+    isSwitched: !!switchedOrganization,
+    canSwitch: isPlatformAdmin(),
+    switchOrganization,
+    clearSwitch: () => switchOrganization(null),
   };
 };

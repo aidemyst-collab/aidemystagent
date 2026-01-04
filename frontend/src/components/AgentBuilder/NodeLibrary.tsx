@@ -9,6 +9,12 @@ import {
   ApartmentOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
+  AudioOutlined,
+  SoundOutlined,
+  CodeOutlined,
+  PhoneOutlined,
+  MessageOutlined,
+  SendOutlined,
 } from '@ant-design/icons';
 import type { NodeType } from '../../types/workflow';
 
@@ -92,6 +98,55 @@ const nodeDefinitions: NodeDefinition[] = [
     icon: <CheckCircleOutlined />,
     color: '#9333EA',
     description: 'Parse and validate LLM output to JSON',
+  },
+  {
+    type: 'AUDIO_TO_TEXT',
+    label: 'Audio to Text',
+    icon: <AudioOutlined />,
+    color: '#9333EA',
+    description: 'Transcribe audio to text (Twilio, Whisper)',
+  },
+  {
+    type: 'TEXT_TO_AUDIO',
+    label: 'Text to Audio',
+    icon: <SoundOutlined />,
+    color: '#059669',
+    description: 'Convert text to speech (TTS)',
+  },
+  {
+    type: 'CODE',
+    label: 'Code',
+    icon: <CodeOutlined />,
+    color: '#F59E0B',
+    description: 'Execute custom JavaScript or Python code',
+  },
+  {
+    type: 'VOICE_INPUT',
+    label: 'Voice Input',
+    icon: <PhoneOutlined />,
+    color: '#10B981',
+    description: 'Receive incoming voice calls (Twilio/Etisalat)',
+  },
+  {
+    type: 'VOICE_OUTPUT',
+    label: 'Voice Output',
+    icon: <SoundOutlined />,
+    color: '#3B82F6',
+    description: 'Play audio response to caller',
+  },
+  {
+    type: 'WHATSAPP_INPUT',
+    label: 'WhatsApp Input',
+    icon: <MessageOutlined />,
+    color: '#25D366',
+    description: 'Receive WhatsApp messages (Meta Cloud API)',
+  },
+  {
+    type: 'WHATSAPP_OUTPUT',
+    label: 'WhatsApp Output',
+    icon: <SendOutlined />,
+    color: '#128C7E',
+    description: 'Send WhatsApp responses (text, media, templates)',
   },
 ];
 

@@ -27,13 +27,15 @@ export const CredentialModal = ({
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<CredentialProvider>('openai');
-  const [credentialType, setCredentialType] = useState<'llm' | 'database'>('llm');
+  const [credentialType, setCredentialType] = useState<'llm' | 'database' | 'voice' | 'whatsapp'>('llm');
 
   useEffect(() => {
     if (initialData) {
       // Determine credential type from provider
       const isDatabaseProvider = ['redis', 'postgresql', 'mongodb'].includes(initialData.provider);
-      const credType = isDatabaseProvider ? 'database' : 'llm';
+      const isVoiceProvider = ['twilio', 'etisalat'].includes(initialData.provider);
+      const isWhatsAppProvider = initialData.provider === 'whatsapp_meta';
+      const credType = isDatabaseProvider ? 'database' : isVoiceProvider ? 'voice' : isWhatsAppProvider ? 'whatsapp' : 'llm';
 
       form.setFieldsValue({
         credential_type: credType,
@@ -57,6 +59,8 @@ export const CredentialModal = ({
     setLoading(true);
     try {
       const isDatabase = ['redis', 'postgresql', 'mongodb'].includes(values.provider);
+      const isVoice = ['twilio', 'etisalat'].includes(values.provider);
+      const isWhatsApp = values.provider === 'whatsapp_meta';
 
       if (initialData) {
         // Update existing credential
@@ -64,7 +68,33 @@ export const CredentialModal = ({
           name: values.name,
         };
 
-        if (isDatabase) {
+        if (isWhatsApp) {
+          // Build connection config for WhatsApp credentials
+          const connectionConfig: Record<string, any> = {};
+          connectionConfig.phone_number_id = values.phone_number_id;
+          connectionConfig.access_token = values.whatsapp_access_token;
+          if (values.business_account_id) connectionConfig.business_account_id = values.business_account_id;
+          if (values.app_secret) connectionConfig.app_secret = values.app_secret;
+
+          updateData.connection_config = connectionConfig;
+        } else if (isVoice) {
+          // Build connection config for voice credentials
+          const connectionConfig: Record<string, any> = {};
+
+          if (values.provider === 'twilio') {
+            connectionConfig.account_sid = values.account_sid;
+            connectionConfig.auth_token = values.auth_token;
+            if (values.phone_number) connectionConfig.phone_number = values.phone_number;
+          } else if (values.provider === 'etisalat') {
+            connectionConfig.api_key = values.etisalat_api_key;
+            connectionConfig.account_id = values.account_id;
+            if (values.api_secret) connectionConfig.api_secret = values.api_secret;
+            if (values.sender_id) connectionConfig.sender_id = values.sender_id;
+            if (values.webhook_secret) connectionConfig.webhook_secret = values.webhook_secret;
+          }
+
+          updateData.connection_config = connectionConfig;
+        } else if (isDatabase) {
           // Build connection config for database credentials
           const connectionConfig: Record<string, any> = {};
 
@@ -107,7 +137,33 @@ export const CredentialModal = ({
           provider: values.provider,
         };
 
-        if (isDatabase) {
+        if (isWhatsApp) {
+          // Build connection config for WhatsApp credentials
+          const connectionConfig: Record<string, any> = {};
+          connectionConfig.phone_number_id = values.phone_number_id;
+          connectionConfig.access_token = values.whatsapp_access_token;
+          if (values.business_account_id) connectionConfig.business_account_id = values.business_account_id;
+          if (values.app_secret) connectionConfig.app_secret = values.app_secret;
+
+          createData.connection_config = connectionConfig;
+        } else if (isVoice) {
+          // Build connection config for voice credentials
+          const connectionConfig: Record<string, any> = {};
+
+          if (values.provider === 'twilio') {
+            connectionConfig.account_sid = values.account_sid;
+            connectionConfig.auth_token = values.auth_token;
+            if (values.phone_number) connectionConfig.phone_number = values.phone_number;
+          } else if (values.provider === 'etisalat') {
+            connectionConfig.api_key = values.etisalat_api_key;
+            connectionConfig.account_id = values.account_id;
+            if (values.api_secret) connectionConfig.api_secret = values.api_secret;
+            if (values.sender_id) connectionConfig.sender_id = values.sender_id;
+            if (values.webhook_secret) connectionConfig.webhook_secret = values.webhook_secret;
+          }
+
+          createData.connection_config = connectionConfig;
+        } else if (isDatabase) {
           // Build connection config for database credentials
           const connectionConfig: Record<string, any> = {};
 
@@ -281,11 +337,13 @@ export const CredentialModal = ({
         >
           <Select
             placeholder="Select credential type"
-            onChange={(value) => setCredentialType(value as 'llm' | 'database')}
+            onChange={(value) => setCredentialType(value as 'llm' | 'database' | 'voice')}
             disabled={!!initialData}
           >
             <Option value="llm">LLM Provider (OpenAI, Anthropic, etc.)</Option>
             <Option value="database">Storage/Database (Redis, PostgreSQL, MongoDB)</Option>
+            <Option value="voice">Voice Provider (Twilio, Etisalat)</Option>
+            <Option value="whatsapp">WhatsApp (Meta Cloud API)</Option>
           </Select>
         </Form.Item>
 
@@ -296,16 +354,31 @@ export const CredentialModal = ({
             { required: true, message: 'Please enter a name for this credential' },
           ]}
         >
-          <Input placeholder={credentialType === 'llm' ? 'e.g., My OpenAI Key' : 'e.g., Production Redis'} />
+          <Input placeholder={
+            credentialType === 'llm' ? 'e.g., My OpenAI Key' :
+            credentialType === 'voice' ? 'e.g., Production Twilio' :
+            credentialType === 'whatsapp' ? 'e.g., Production WhatsApp' :
+            'e.g., Production Redis'
+          } />
         </Form.Item>
 
         <Form.Item
-          label={credentialType === 'llm' ? 'LLM Provider' : 'Storage Type'}
+          label={
+            credentialType === 'llm' ? 'LLM Provider' :
+            credentialType === 'voice' ? 'Voice Provider' :
+            credentialType === 'whatsapp' ? 'WhatsApp Provider' :
+            'Storage Type'
+          }
           name="provider"
           rules={[{ required: true, message: 'Please select a provider' }]}
         >
           <Select
-            placeholder={credentialType === 'llm' ? 'Select LLM provider' : 'Select storage type'}
+            placeholder={
+              credentialType === 'llm' ? 'Select LLM provider' :
+              credentialType === 'voice' ? 'Select voice provider' :
+              credentialType === 'whatsapp' ? 'Select WhatsApp provider' :
+              'Select storage type'
+            }
             onChange={(value) => setSelectedProvider(value as CredentialProvider)}
             disabled={!!initialData}
           >
@@ -316,6 +389,15 @@ export const CredentialModal = ({
                 <Option value="google">Google (Gemini)</Option>
                 <Option value="azure_openai">Azure OpenAI</Option>
                 <Option value="custom">Custom</Option>
+              </>
+            ) : credentialType === 'voice' ? (
+              <>
+                <Option value="twilio">Twilio</Option>
+                <Option value="etisalat">Etisalat CPaaS (e&)</Option>
+              </>
+            ) : credentialType === 'whatsapp' ? (
+              <>
+                <Option value="whatsapp_meta">Meta Cloud API</Option>
               </>
             ) : (
               <>
@@ -340,6 +422,135 @@ export const CredentialModal = ({
           >
             <Input.Password placeholder="sk-..." />
           </Form.Item>
+        ) : credentialType === 'voice' ? (
+          <>
+            {/* Voice Provider Fields */}
+            {selectedProvider === 'twilio' && (
+              <>
+                <Alert
+                  message="Find your Twilio credentials in the Twilio Console under Account > API Keys & Tokens"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <Form.Item
+                  label="Account SID"
+                  name="account_sid"
+                  rules={[{ required: true, message: 'Please enter your Twilio Account SID' }]}
+                  tooltip="Found on your Twilio Console dashboard"
+                >
+                  <Input placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+                </Form.Item>
+                <Form.Item
+                  label="Auth Token"
+                  name="auth_token"
+                  rules={[{ required: true, message: 'Please enter your Twilio Auth Token' }]}
+                  tooltip="Found on your Twilio Console dashboard"
+                >
+                  <Input.Password placeholder="Your Twilio Auth Token" />
+                </Form.Item>
+                <Form.Item
+                  label="Phone Number (Optional)"
+                  name="phone_number"
+                  tooltip="Your Twilio phone number for outbound calls"
+                >
+                  <Input placeholder="+1234567890" />
+                </Form.Item>
+              </>
+            )}
+
+            {selectedProvider === 'etisalat' && (
+              <>
+                <Alert
+                  message="Get your Etisalat CPaaS credentials from the e& enterprise engageX Nexus portal"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <Form.Item
+                  label="API Key"
+                  name="etisalat_api_key"
+                  rules={[{ required: true, message: 'Please enter your Etisalat API Key' }]}
+                  tooltip="Your Etisalat CPaaS API key"
+                >
+                  <Input.Password placeholder="Your Etisalat API Key" />
+                </Form.Item>
+                <Form.Item
+                  label="Account ID"
+                  name="account_id"
+                  rules={[{ required: true, message: 'Please enter your Etisalat Account ID' }]}
+                  tooltip="Your Etisalat CPaaS account identifier"
+                >
+                  <Input placeholder="Your Account ID" />
+                </Form.Item>
+                <Form.Item
+                  label="API Secret (Optional)"
+                  name="api_secret"
+                  tooltip="Used for webhook signature validation"
+                >
+                  <Input.Password placeholder="Your API Secret" />
+                </Form.Item>
+                <Form.Item
+                  label="Sender ID (Optional)"
+                  name="sender_id"
+                  tooltip="Your registered sender ID for outbound calls"
+                >
+                  <Input placeholder="Your Sender ID" />
+                </Form.Item>
+                <Form.Item
+                  label="Webhook Secret (Optional)"
+                  name="webhook_secret"
+                  tooltip="Secret for validating incoming webhooks"
+                >
+                  <Input.Password placeholder="Webhook validation secret" />
+                </Form.Item>
+              </>
+            )}
+          </>
+        ) : credentialType === 'whatsapp' ? (
+          <>
+            {/* WhatsApp Provider Fields */}
+            {selectedProvider === 'whatsapp_meta' && (
+              <>
+                <Alert
+                  message="Get your credentials from the Meta Developer Dashboard under WhatsApp > Getting Started"
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+                <Form.Item
+                  label="Phone Number ID"
+                  name="phone_number_id"
+                  rules={[{ required: true, message: 'Please enter your WhatsApp Phone Number ID' }]}
+                  tooltip="Found in Meta Developer Dashboard under WhatsApp > Getting Started"
+                >
+                  <Input placeholder="1234567890123456" />
+                </Form.Item>
+                <Form.Item
+                  label="Access Token"
+                  name="whatsapp_access_token"
+                  rules={[{ required: true, message: 'Please enter your Access Token' }]}
+                  tooltip="Permanent token from System User or temporary token from dashboard"
+                >
+                  <Input.Password placeholder="EAAxxxxxxx..." />
+                </Form.Item>
+                <Form.Item
+                  label="Business Account ID (Optional)"
+                  name="business_account_id"
+                  tooltip="Required for template management"
+                >
+                  <Input placeholder="1234567890123456" />
+                </Form.Item>
+                <Form.Item
+                  label="App Secret (Optional)"
+                  name="app_secret"
+                  tooltip="Used for webhook signature validation - found in App Settings > Basic"
+                >
+                  <Input.Password placeholder="Your App Secret" />
+                </Form.Item>
+              </>
+            )}
+          </>
         ) : (
           <>
             {/* Database Connection Fields */}

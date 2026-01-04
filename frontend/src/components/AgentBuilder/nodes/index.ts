@@ -9,6 +9,13 @@ export { SubgraphNode } from './SubgraphNode';
 export { AuxiliaryNode } from './AuxiliaryNode';
 export { FileReaderNode } from './FileReaderNode';
 export { StructuredOutputParserNode } from './StructuredOutputParserNode';
+export { AudioToTextNode } from './AudioToTextNode';
+export { TextToAudioNode } from './TextToAudioNode';
+export { CodeNode } from './CodeNode';
+export { VoiceInputNode } from './VoiceInputNode';
+export { VoiceOutputNode } from './VoiceOutputNode';
+export { WhatsAppInputNode } from './WhatsAppInputNode';
+export { WhatsAppOutputNode } from './WhatsAppOutputNode';
 
 export const nodeTypes = {
   INPUT: 'InputNode',
@@ -21,4 +28,11 @@ export const nodeTypes = {
   SUBGRAPH: 'SubgraphNode',
   FILE_READER: 'FileReaderNode',
   STRUCTURED_OUTPUT_PARSER: 'StructuredOutputParserNode',
+  AUDIO_TO_TEXT: 'AudioToTextNode',
+  TEXT_TO_AUDIO: 'TextToAudioNode',
+  CODE: 'CodeNode',
+  VOICE_INPUT: 'VoiceInputNode',
+  VOICE_OUTPUT: 'VoiceOutputNode',
+  WHATSAPP_INPUT: 'WhatsAppInputNode',
+  WHATSAPP_OUTPUT: 'WhatsAppOutputNode',
 };

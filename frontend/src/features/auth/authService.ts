@@ -1,5 +1,5 @@
 import { apiClient } from '../../services/api';
-import type { User, AuthTokens, LoginRequest, RegisterRequest, PasswordResetRequest } from '../../types/auth';
+import type { User, AuthTokens, LoginRequest, RegisterRequest, PasswordResetRequest, Organization } from '../../types/auth';
 
 interface LoginResponse {
   user: User;
@@ -42,5 +42,9 @@ export const authService = {
 
   getCurrentUser: async (): Promise<User> => {
     return apiClient.get<User>('/auth/me');
+  },
+
+  getCurrentOrganization: async (): Promise<Organization> => {
+    return apiClient.get<Organization>('/organizations/current');
   },
 };

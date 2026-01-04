@@ -11,7 +11,8 @@ from datetime import datetime, date
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.models.user import Organization, User, UserRole
+from app.models.user import Organization, User, UserRole as UserRoleEnum
+from app.models.role import Role, UserRole as UserRoleAssignment
 from app.core.security import get_password_hash
 from app.models.subscription import SubscriptionPlan
 from app.models.organization_usage import OrganizationUsage
@@ -172,7 +173,7 @@ class CreateUserAdminRequest(BaseModel):
     password: str = Field(..., min_length=8, description="User password")
     full_name: Optional[str] = Field(None, description="User full name")
     organization_id: UUID = Field(..., description="Organization ID to add user to")
-    role: str = Field("creator", description="Legacy role: admin, creator, or viewer")
+    role: str = Field("developer", description="RBAC role: org_owner, org_admin, agent_admin, developer, operator, or viewer")
     is_platform_admin: bool = Field(False, description="Whether user is a platform admin")
     is_active: bool = Field(True, description="Whether user is active")
 
@@ -961,13 +962,26 @@ async def create_user_admin(
             detail="Organization not found",
         )
 
-    # Map role string to enum
-    role_map = {
-        "admin": UserRole.ADMIN,
-        "creator": UserRole.CREATOR,
-        "viewer": UserRole.VIEWER,
+    # Valid RBAC roles
+    valid_rbac_roles = ['org_owner', 'org_admin', 'agent_admin', 'developer', 'operator', 'viewer']
+    rbac_role_name = user_data.role.lower()
+
+    if rbac_role_name not in valid_rbac_roles:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role: {user_data.role}. Valid roles: {', '.join(valid_rbac_roles)}",
+        )
+
+    # Map RBAC role to legacy enum for backwards compatibility
+    rbac_to_legacy = {
+        "org_owner": UserRoleEnum.ADMIN,
+        "org_admin": UserRoleEnum.ADMIN,
+        "agent_admin": UserRoleEnum.CREATOR,
+        "developer": UserRoleEnum.CREATOR,
+        "operator": UserRoleEnum.CREATOR,
+        "viewer": UserRoleEnum.VIEWER,
     }
-    user_role = role_map.get(user_data.role.lower(), UserRole.CREATOR)
+    legacy_role = rbac_to_legacy.get(rbac_role_name, UserRoleEnum.CREATOR)
 
     # Create user
     new_user = User(
@@ -975,13 +989,34 @@ async def create_user_admin(
         hashed_password=get_password_hash(user_data.password),
         full_name=user_data.full_name,
         organization_id=user_data.organization_id,
-        role=user_role,
+        role=legacy_role,
         is_platform_admin=user_data.is_platform_admin,
         is_active=user_data.is_active,
         email_verified=True,  # Admin-created users are auto-verified
     )
 
     db.add(new_user)
+    await db.flush()  # Flush to get user ID
+
+    # Create RBAC role assignment
+    role_result = await db.execute(
+        select(Role).where(
+            Role.name == rbac_role_name,
+            Role.organization_id.is_(None),
+            Role.is_system_role == True
+        )
+    )
+    rbac_role = role_result.scalar_one_or_none()
+
+    if rbac_role:
+        user_role_assignment = UserRoleAssignment(
+            user_id=new_user.id,
+            role_id=rbac_role.id,
+            organization_id=user_data.organization_id,
+            assigned_by=current_user.id,
+        )
+        db.add(user_role_assignment)
+
     await db.commit()
     await db.refresh(new_user)
 
@@ -1072,3 +1107,93 @@ async def update_user_status(
     await db.commit()
 
     return {"message": f"User active status set to {is_active}"}
+
+
+# ============== Role Repair ==============
+
+@router.post("/repair-roles")
+async def repair_missing_role_assignments(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_platform_admin),
+):
+    """
+    Repair missing role assignments for users who don't have entries in user_roles table.
+    This fixes users who were created before RBAC was implemented or whose role assignments are missing.
+    Super admin only.
+    """
+    # Find users without role assignments
+    subquery = select(UserRoleAssignment.user_id).distinct()
+    users_without_roles = await db.execute(
+        select(User).where(
+            User.deleted_at.is_(None),
+            ~User.id.in_(subquery)
+        )
+    )
+    users = users_without_roles.scalars().all()
+
+    if not users:
+        return {"message": "No users found without role assignments", "repaired_count": 0}
+
+    # Map legacy roles to RBAC roles
+    legacy_to_rbac = {
+        "ADMIN": "org_admin",
+        "CREATOR": "developer",
+        "VIEWER": "viewer",
+    }
+
+    repaired_count = 0
+    errors = []
+
+    for user in users:
+        try:
+            # Get the legacy role value
+            legacy_role = user.role.value if hasattr(user.role, 'value') else str(user.role).upper()
+            rbac_role_name = legacy_to_rbac.get(legacy_role, "developer")
+
+            # Check if this is the first/only user in their org - they should be org_owner
+            org_users_count = await db.execute(
+                select(func.count(User.id)).where(
+                    User.organization_id == user.organization_id,
+                    User.deleted_at.is_(None),
+                )
+            )
+            count = org_users_count.scalar() or 0
+
+            # If only user in org and they're an admin, make them org_owner
+            if count == 1 and legacy_role == "ADMIN":
+                rbac_role_name = "org_owner"
+
+            # Find the role
+            role_result = await db.execute(
+                select(Role).where(
+                    Role.name == rbac_role_name,
+                    Role.organization_id.is_(None),
+                    Role.is_system_role == True
+                )
+            )
+            role = role_result.scalar_one_or_none()
+
+            if not role:
+                errors.append(f"Role {rbac_role_name} not found for user {user.email}")
+                continue
+
+            # Create user role assignment
+            user_role_assignment = UserRoleAssignment(
+                user_id=user.id,
+                role_id=role.id,
+                organization_id=user.organization_id,
+            )
+            db.add(user_role_assignment)
+            repaired_count += 1
+
+        except Exception as e:
+            errors.append(f"Error repairing user {user.email}: {str(e)}")
+
+    await db.commit()
+
+    return {
+        "message": f"Repaired {repaired_count} user role assignments",
+        "repaired_count": repaired_count,
+        "total_users_checked": len(users),
+        "errors": errors if errors else None
+    }

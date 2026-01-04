@@ -83,7 +83,11 @@ export const workflowService = {
   /**
    * Execute a workflow
    */
-  executeWorkflow: async (id: string, input: string): Promise<any> => {
-    return apiClient.post<any>(`/workflows/${id}/execute/`, { input });
+  executeWorkflow: async (id: string, input: string, inputMode?: string, sessionId?: string): Promise<any> => {
+    return apiClient.post<any>(`/workflows/${id}/execute/`, {
+      input,
+      input_mode: inputMode,
+      session_id: sessionId
+    });
   },
 };

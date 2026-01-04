@@ -16,6 +16,7 @@ from app.services.langgraph_engine import LangGraphEngine
 from app.api.deps import (
     get_current_active_user,
     require_permission,
+    get_effective_organization_id,
 )
 import redis.asyncio as aioredis
 
@@ -65,6 +66,7 @@ async def execute_agent(
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:execute")),
 ):
     """Execute an agent (non-streaming)."""
@@ -84,8 +86,8 @@ async def execute_agent(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -164,6 +166,7 @@ async def execute_agent_stream(
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:execute")),
 ):
     """Execute an agent with streaming response."""
@@ -183,8 +186,8 @@ async def execute_agent_stream(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -248,6 +251,7 @@ async def get_execution_status(
     execution_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:read")),
 ):
     """Get execution status."""
@@ -264,12 +268,12 @@ async def get_execution_status(
 
     # Check if user has access to this execution
     if execution.user_id != current_user.id:
-        # Check if agent belongs to user's org
+        # Check if agent belongs to effective org (supports platform admin switching)
         agent_result = await db.execute(
             select(Agent).where(Agent.id == execution.agent_id)
         )
         agent = agent_result.scalar_one_or_none()
-        if not agent or agent.organization_id != current_user.organization_id:
+        if not agent or agent.organization_id != effective_org_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have access to this execution",

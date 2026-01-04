@@ -18,6 +18,7 @@ from app.api.deps import (
     get_current_active_user,
     get_permission_service,
     require_permission,
+    get_effective_organization_id,
 )
 from app.services.permission_service import PermissionService
 
@@ -29,6 +30,7 @@ async def create_agent(
     agent_data: AgentCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:create")),
 ):
     """Create a new agent."""
@@ -36,7 +38,7 @@ async def create_agent(
         name=agent_data.name,
         description=agent_data.description,
         config=agent_data.config,
-        organization_id=current_user.organization_id,
+        organization_id=effective_org_id,
         creator_id=current_user.id,
     )
     db.add(agent)
@@ -54,13 +56,14 @@ async def list_agents(
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:read")),
 ):
-    """List all agents for the current user's organization."""
-    # Base query - filter by organization and exclude soft-deleted
+    """List all agents for the effective organization (supports admin org switching)."""
+    # Base query - filter by effective organization and exclude soft-deleted
     query = (
         select(Agent)
-        .where(Agent.organization_id == current_user.organization_id)
+        .where(Agent.organization_id == effective_org_id)
         .where(Agent.deleted_at.is_(None))
     )
 
@@ -77,7 +80,7 @@ async def list_agents(
     # Get total count
     count_query = (
         select(func.count(Agent.id))
-        .where(Agent.organization_id == current_user.organization_id)
+        .where(Agent.organization_id == effective_org_id)
         .where(Agent.deleted_at.is_(None))
     )
     if status_filter:
@@ -107,6 +110,7 @@ async def get_agent(
     agent_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:read")),
 ):
     """Get agent by ID."""
@@ -123,8 +127,8 @@ async def get_agent(
             detail="Agent not found",
         )
 
-    # Check organization access (platform admins can access any org)
-    if not current_user.is_platform_admin and agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -139,6 +143,7 @@ async def update_agent(
     agent_data: AgentUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Update an agent."""
@@ -155,8 +160,8 @@ async def update_agent(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if not current_user.is_platform_admin and agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -197,6 +202,7 @@ async def delete_agent(
     agent_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     permission_service: PermissionService = Depends(get_permission_service),
 ):
     """Delete an agent (soft delete)."""
@@ -213,8 +219,8 @@ async def delete_agent(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if not current_user.is_platform_admin and agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -246,6 +252,7 @@ async def deploy_agent(
     agent_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("deployments:create")),
 ):
     """Deploy an agent."""
@@ -262,8 +269,8 @@ async def deploy_agent(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if not current_user.is_platform_admin and agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -281,6 +288,7 @@ async def test_agent(
     agent_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:execute")),
 ):
     """Test an agent."""
@@ -297,8 +305,8 @@ async def test_agent(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if not current_user.is_platform_admin and agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",

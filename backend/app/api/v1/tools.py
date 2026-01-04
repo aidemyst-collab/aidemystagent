@@ -21,6 +21,7 @@ from app.api.deps import (
     get_current_active_user,
     get_permission_service,
     require_permission,
+    get_effective_organization_id,
 )
 from app.services.permission_service import PermissionService
 
@@ -54,16 +55,16 @@ async def execute_builtin_tool(
 async def list_tools(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("tools:read")),
     skip: int = 0,
     limit: int = 100,
     tool_type: str = None,
 ):
     """List all custom tools from database, optionally filtered by type."""
-    # Build base query for tools the user has access to
+    # Build base query for tools in the effective organization (supports admin switching)
     base_conditions = [
-        (Tool.creator_id == current_user.id) |
-        (Tool.organization_id == current_user.organization_id) |
+        (Tool.organization_id == effective_org_id) |
         (Tool.visibility == "public")
     ]
 
@@ -88,6 +89,7 @@ async def get_tool(
     tool_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("tools:read")),
 ):
     """Get tool by ID."""
@@ -100,10 +102,10 @@ async def get_tool(
             detail="Tool not found",
         )
 
-    # Check access permissions
+    # Check access permissions (using effective org for platform admin switching)
     if (
         tool.creator_id != current_user.id
-        and tool.organization_id != current_user.organization_id
+        and tool.organization_id != effective_org_id
         and tool.visibility != "public"
     ):
         raise HTTPException(
@@ -119,15 +121,16 @@ async def create_tool(
     tool_data: ToolCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("tools:create")),
 ):
     """Create a custom tool."""
-    # Check if tool name already exists for this user/org
+    # Check if tool name already exists for this user/org (using effective org for platform admin switching)
     existing_tool = await db.execute(
         select(Tool).where(
             Tool.name == tool_data.name,
             (Tool.creator_id == current_user.id) |
-            (Tool.organization_id == current_user.organization_id)
+            (Tool.organization_id == effective_org_id)
         )
     )
 
@@ -137,7 +140,7 @@ async def create_tool(
             detail="A tool with this name already exists",
         )
 
-    # Create new tool
+    # Create new tool (using effective org for platform admin switching)
     new_tool = Tool(
         name=tool_data.name,
         description=tool_data.description,
@@ -146,7 +149,7 @@ async def create_tool(
         visibility=tool_data.visibility,
         status=tool_data.status,
         creator_id=current_user.id,
-        organization_id=current_user.organization_id,
+        organization_id=effective_org_id,
     )
 
     db.add(new_tool)
@@ -228,6 +231,7 @@ async def test_tool(
     request: ToolExecuteRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("tools:execute")),
 ):
     """Test a custom tool."""
@@ -240,10 +244,10 @@ async def test_tool(
             detail="Tool not found",
         )
 
-    # Check access permissions
+    # Check access permissions (using effective org for platform admin switching)
     if (
         tool.creator_id != current_user.id
-        and tool.organization_id != current_user.organization_id
+        and tool.organization_id != effective_org_id
         and tool.visibility != "public"
     ):
         raise HTTPException(

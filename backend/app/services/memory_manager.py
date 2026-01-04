@@ -1,4 +1,7 @@
-"""Memory Manager service for conversation history management."""
+"""Memory Manager service for conversation history management.
+
+Multi-tenant session management with organization and workflow isolation.
+"""
 
 from typing import List, Optional, Dict, Any
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
@@ -9,10 +12,11 @@ from langchain.memory import (
 import redis.asyncio as aioredis
 import json
 from datetime import datetime, timedelta
+import uuid
 
 
 class MemoryManager:
-    """Manages conversation memory for agents."""
+    """Manages conversation memory for agents with multi-tenant isolation."""
 
     def __init__(self, redis_client: aioredis.Redis):
         """Initialize memory manager with Redis client.
@@ -22,27 +26,78 @@ class MemoryManager:
         """
         self.redis = redis_client
 
+    def _build_session_key(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ) -> str:
+        """Build a multi-tenant session key.
+
+        Format: memory:{org_id}:{workflow_id}:{session_id}
+
+        This ensures:
+        - Organization isolation (sessions don't leak across orgs)
+        - Workflow isolation (sessions are per-workflow)
+        - Unique sessions within a workflow
+
+        Args:
+            session_id: Unique session identifier
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
+
+        Returns:
+            str: Redis key with proper scoping
+        """
+        parts = ["memory"]
+
+        if organization_id:
+            parts.append(str(organization_id))
+        else:
+            parts.append("global")  # Fallback for testing/dev
+
+        if workflow_id:
+            parts.append(str(workflow_id))
+        else:
+            parts.append("default")  # Fallback
+
+        parts.append(session_id)
+
+        return ":".join(parts)
+
+    @staticmethod
+    def generate_session_id() -> str:
+        """Generate a new unique session ID.
+
+        Returns:
+            str: New session ID in format 'sess_{timestamp}_{random}'
+        """
+        timestamp = int(datetime.utcnow().timestamp() * 1000)
+        random_part = uuid.uuid4().hex[:8]
+        return f"sess_{timestamp}_{random_part}"
+
     async def load_session_memory(
         self,
         session_id: str,
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
     ) -> List[BaseMessage]:
         """Load conversation history from persistent storage.
 
         Args:
             session_id: Unique session identifier
             config: Memory configuration
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
 
         Returns:
             List[BaseMessage]: Conversation history
         """
-        if not config.get("persistence", {}).get("enabled"):
-            return []
-
         backend = config.get("persistence", {}).get("backend", "redis")
 
         if backend == "redis":
-            key = f"memory:session:{session_id}"
+            key = self._build_session_key(session_id, organization_id, workflow_id)
             data = await self.redis.get(key)
             if data:
                 messages_data = json.loads(data)
@@ -56,7 +111,9 @@ class MemoryManager:
         self,
         session_id: str,
         messages: List[BaseMessage],
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
     ):
         """Save conversation history to persistent storage.
 
@@ -64,14 +121,13 @@ class MemoryManager:
             session_id: Unique session identifier
             messages: List of messages to save
             config: Memory configuration
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
         """
-        if not config.get("persistence", {}).get("enabled"):
-            return
-
         backend = config.get("persistence", {}).get("backend", "redis")
 
         if backend == "redis":
-            key = f"memory:session:{session_id}"
+            key = self._build_session_key(session_id, organization_id, workflow_id)
             messages_data = self._serialize_messages(messages)
 
             # Set TTL (default 7 days)
@@ -116,7 +172,9 @@ class MemoryManager:
         self,
         session_id: Optional[str],
         config: Dict[str, Any],
-        current_input: str
+        current_input: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Get memory context to inject into LLM.
 
@@ -124,6 +182,8 @@ class MemoryManager:
             session_id: Optional session identifier
             config: Memory configuration
             current_input: Current user input
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
 
         Returns:
             Dict with chat_history and other memory context
@@ -132,8 +192,10 @@ class MemoryManager:
         window_size = config.get("windowSize", 10)
 
         # Load conversation history if session exists
-        if session_id and config.get("persistence", {}).get("enabled"):
-            history = await self.load_session_memory(session_id, config)
+        if session_id:
+            history = await self.load_session_memory(
+                session_id, config, organization_id, workflow_id
+            )
         else:
             history = []
 
@@ -153,7 +215,9 @@ class MemoryManager:
         user_message: BaseMessage,
         ai_message: BaseMessage,
         existing_history: List[BaseMessage],
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
     ):
         """Update memory with new messages.
 
@@ -163,6 +227,8 @@ class MemoryManager:
             ai_message: AI's response
             existing_history: Existing conversation history
             config: Memory configuration
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
         """
         # Add new messages to history
         updated_history = existing_history + [user_message, ai_message]
@@ -173,9 +239,11 @@ class MemoryManager:
             window_size = config.get("windowSize", 10)
             updated_history = await self.apply_window(updated_history, window_size)
 
-        # Save to persistent storage if configured
-        if session_id and config.get("persistence", {}).get("enabled"):
-            await self.save_session_memory(session_id, updated_history, config)
+        # Save to persistent storage
+        if session_id:
+            await self.save_session_memory(
+                session_id, updated_history, config, organization_id, workflow_id
+            )
 
     def _serialize_messages(self, messages: List[BaseMessage]) -> List[Dict[str, Any]]:
         """Serialize messages to JSON-compatible format.
@@ -230,25 +298,39 @@ class MemoryManager:
 
         return messages
 
-    async def clear_session(self, session_id: str):
+    async def clear_session(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ):
         """Clear session memory.
 
         Args:
             session_id: Session identifier to clear
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
         """
-        key = f"memory:session:{session_id}"
+        key = self._build_session_key(session_id, organization_id, workflow_id)
         await self.redis.delete(key)
 
-    async def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def get_session_info(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
         """Get information about a session.
 
         Args:
             session_id: Session identifier
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
 
         Returns:
             Dict with session info or None if not found
         """
-        key = f"memory:session:{session_id}"
+        key = self._build_session_key(session_id, organization_id, workflow_id)
         data = await self.redis.get(key)
 
         if not data:
@@ -259,6 +341,8 @@ class MemoryManager:
 
         return {
             "session_id": session_id,
+            "organization_id": organization_id,
+            "workflow_id": workflow_id,
             "message_count": len(messages_data),
             "ttl_seconds": ttl,
             "expires_at": datetime.utcnow() + timedelta(seconds=ttl) if ttl > 0 else None

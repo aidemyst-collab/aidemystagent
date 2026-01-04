@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.models.agent import Agent, AgentStatus
 from app.models.user import User
 from app.services.templates import AgentTemplates
-from app.api.deps import get_current_active_user, require_permission
+from app.api.deps import get_current_active_user, require_permission, get_effective_organization_id
 
 router = APIRouter()
 
@@ -46,6 +46,7 @@ async def clone_template(
     template_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:create")),
 ):
     """Clone a template to create a new agent."""
@@ -58,12 +59,12 @@ async def clone_template(
             detail="Template not found",
         )
 
-    # Create new agent from template
+    # Create new agent from template (using effective org for platform admin switching)
     agent = Agent(
         name=template["name"],
         description=template["description"],
         config=template["config"],
-        organization_id=current_user.organization_id,
+        organization_id=effective_org_id,
         creator_id=current_user.id,
         status=AgentStatus.DRAFT,
     )

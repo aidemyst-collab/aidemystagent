@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     FILE_READER_ALLOW_HIDDEN_FILES: bool = False
     FILE_READER_TIMEOUT_SECONDS: int = 30
 
+    # Voice Webhook Security Settings
+    VOICE_WEBHOOK_IP_WHITELIST: bool = True  # Enable IP whitelisting for voice webhooks
+    VOICE_WEBHOOK_BASIC_AUTH: bool = False  # Enable Basic Auth for voice webhooks (requires per-deployment config)
+    VOICE_WEBHOOK_SIGNATURE_REQUIRED: bool = True  # Require webhook signature validation
+
     class Config:
         env_file = ".env"
         case_sensitive = True

@@ -224,8 +224,8 @@ const AuditLogs: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>Audit Logs</h1>
-        <p style={{ color: '#888' }}>View system activity and security events</p>
+        <h1 style={{ margin: 0 }}>User Activity Audit</h1>
+        <p style={{ color: '#888' }}>Track user security events: logins, logouts, and administrative actions</p>
       </div>
 
       {/* Summary Cards */}

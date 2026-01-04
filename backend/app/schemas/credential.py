@@ -45,6 +45,31 @@ class CredentialCreate(CredentialBase):
         if provider in [CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB]:
             if not v:
                 raise ValueError('Connection configuration is required for database providers')
+        # Require connection_config for voice providers
+        if provider in [CredentialProvider.TWILIO, CredentialProvider.ETISALAT]:
+            if not v:
+                raise ValueError('Connection configuration is required for voice providers')
+            # Validate Twilio-specific fields
+            if provider == CredentialProvider.TWILIO:
+                if not v.get('account_sid'):
+                    raise ValueError('Account SID is required for Twilio')
+                if not v.get('auth_token'):
+                    raise ValueError('Auth Token is required for Twilio')
+            # Validate Etisalat-specific fields
+            if provider == CredentialProvider.ETISALAT:
+                if not v.get('api_key'):
+                    raise ValueError('API Key is required for Etisalat')
+                if not v.get('account_id'):
+                    raise ValueError('Account ID is required for Etisalat')
+        # Require connection_config for WhatsApp provider
+        if provider == CredentialProvider.WHATSAPP_META:
+            if not v:
+                raise ValueError('Connection configuration is required for WhatsApp')
+            # Validate WhatsApp-specific fields
+            if not v.get('phone_number_id'):
+                raise ValueError('Phone Number ID is required for WhatsApp')
+            if not v.get('access_token'):
+                raise ValueError('Access Token is required for WhatsApp')
         return v
 
 

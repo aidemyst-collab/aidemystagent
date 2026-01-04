@@ -12,7 +12,10 @@ export type CredentialProvider =
   | 'custom'
   | 'redis'
   | 'postgresql'
-  | 'mongodb';
+  | 'mongodb'
+  | 'twilio'
+  | 'etisalat'
+  | 'whatsapp_meta';
 
 export interface Credential {
   id: string;

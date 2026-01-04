@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -17,6 +17,7 @@ from app.core.security import (
     decode_token,
 )
 from app.models.user import User, Organization
+from app.models.audit_log import AuditLog, AuditAction
 from app.api.deps import get_current_active_user
 
 router = APIRouter()
@@ -112,6 +113,37 @@ async def get_user_roles(db: AsyncSession, user: User) -> List[str]:
         return []
 
 
+async def assign_role_to_user(db: AsyncSession, user_id: uuid.UUID, role_name: str, organization_id: uuid.UUID) -> bool:
+    """Assign a role to a user in the user_roles table."""
+    try:
+        from app.models.role import UserRole, Role
+
+        # Find the role by name
+        result = await db.execute(
+            select(Role).where(
+                Role.name == role_name,
+                Role.organization_id.is_(None),  # System roles have no org_id
+                Role.is_system_role == True
+            )
+        )
+        role = result.scalar_one_or_none()
+
+        if not role:
+            return False
+
+        # Create user role assignment
+        user_role = UserRole(
+            user_id=user_id,
+            role_id=role.id,
+            organization_id=organization_id,
+        )
+        db.add(user_role)
+        return True
+    except Exception as e:
+        print(f"Error assigning role: {e}")
+        return False
+
+
 def build_user_response(user: User, roles: List[str], org_name: Optional[str] = None) -> UserResponseAuth:
     """Build user response from user model."""
     return UserResponseAuth(
@@ -191,16 +223,18 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
         org_name = organization.name
 
     # Determine user role
-    role_value = "CREATOR"  # Default
+    role_value = "CREATOR"  # Default legacy role
+    rbac_role_name = "developer"  # Default RBAC role
     if user_data.role:
         role_value = user_data.role.upper()
 
-    # First user in org gets ADMIN role
+    # First user in org gets ADMIN/org_owner role
     org_users = await db.execute(
         select(User).where(User.organization_id == organization.id)
     )
     if not org_users.scalars().first():
         role_value = "ADMIN"
+        rbac_role_name = "org_owner"
 
     # Create user
     hashed_password = get_password_hash(user_data.password)
@@ -218,6 +252,11 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
         user.is_active = True
 
     db.add(user)
+    await db.flush()  # Flush to get user.id
+
+    # Assign RBAC role to user
+    await assign_role_to_user(db, user.id, rbac_role_name, organization.id)
+
     await db.commit()
     await db.refresh(user)
 
@@ -238,8 +277,16 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
+async def login(
+    credentials: UserLogin,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
     """Login user."""
+    # Get client info for audit
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
     result = await db.execute(
         select(User)
         .options(selectinload(User.organization))
@@ -248,6 +295,24 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(credentials.password, user.hashed_password):
+        # Log failed login attempt
+        audit_log = AuditLog.create_log(
+            action=AuditAction.USER_LOGIN_FAILED,
+            resource_type="user",
+            resource_id=str(user.id) if user else None,
+            resource_name=credentials.email,
+            user_id=user.id if user else None,
+            user_email=credentials.email,
+            organization_id=user.organization_id if user else None,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            status="failure",
+            error_message="Invalid credentials",
+            metadata={"reason": "invalid_password" if user else "user_not_found"},
+        )
+        db.add(audit_log)
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -255,6 +320,24 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
 
     # Check if user is active
     if hasattr(user, 'is_active') and not user.is_active:
+        # Log failed login due to deactivation
+        audit_log = AuditLog.create_log(
+            action=AuditAction.USER_LOGIN_FAILED,
+            resource_type="user",
+            resource_id=str(user.id),
+            resource_name=user.email,
+            user_id=user.id,
+            user_email=user.email,
+            organization_id=user.organization_id,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            status="failure",
+            error_message="Account deactivated",
+            metadata={"reason": "account_deactivated"},
+        )
+        db.add(audit_log)
+        await db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
@@ -263,7 +346,23 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     # Update last login
     if hasattr(user, 'last_login_at'):
         user.last_login_at = datetime.utcnow()
-        await db.commit()
+
+    # Log successful login
+    audit_log = AuditLog.create_log(
+        action=AuditAction.USER_LOGIN,
+        resource_type="user",
+        resource_id=str(user.id),
+        resource_name=user.email,
+        user_id=user.id,
+        user_email=user.email,
+        organization_id=user.organization_id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        status="success",
+        metadata={"login_method": "email_password"},
+    )
+    db.add(audit_log)
+    await db.commit()
 
     # Get user roles
     roles = await get_user_roles(db, user)
@@ -306,8 +405,32 @@ async def refresh_token(data: RefreshTokenRequest):
 
 
 @router.post("/logout")
-async def logout():
-    """Logout user (client-side token removal)."""
+async def logout(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Logout user."""
+    # Get client info for audit
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    # Log logout
+    audit_log = AuditLog.create_log(
+        action=AuditAction.USER_LOGOUT,
+        resource_type="user",
+        resource_id=str(current_user.id),
+        resource_name=current_user.email,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        organization_id=current_user.organization_id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        status="success",
+    )
+    db.add(audit_log)
+    await db.commit()
+
     return {"message": "Logged out successfully"}
 
 
@@ -338,3 +461,90 @@ async def get_current_user_info(
     roles = await get_user_roles(db, current_user)
 
     return build_user_response(current_user, roles, org_name)
+
+
+@router.post("/repair-my-roles")
+async def repair_current_user_roles(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Self-service endpoint to repair missing RBAC role assignments.
+    Call this if you're getting 403 errors on endpoints you should have access to.
+    """
+    from app.models.role import UserRole as UserRoleAssignment, Role
+    from sqlalchemy import func
+
+    # Check if user already has role assignments
+    existing_roles = await db.execute(
+        select(UserRoleAssignment).where(UserRoleAssignment.user_id == current_user.id)
+    )
+    existing = existing_roles.scalars().all()
+
+    if existing:
+        roles = await get_user_roles(db, current_user)
+        return {
+            "message": "User already has role assignments",
+            "roles": roles,
+            "repaired": False
+        }
+
+    # Map legacy roles to RBAC roles
+    legacy_to_rbac = {
+        "ADMIN": "org_admin",
+        "CREATOR": "developer",
+        "VIEWER": "viewer",
+    }
+
+    # Get the legacy role value
+    legacy_role = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role).upper()
+    rbac_role_name = legacy_to_rbac.get(legacy_role, "developer")
+
+    # Check if this is the only user in their org - they should be org_owner
+    org_users_count = await db.execute(
+        select(func.count(User.id)).where(
+            User.organization_id == current_user.organization_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    count = org_users_count.scalar() or 0
+
+    # If only user in org and they're an admin, make them org_owner
+    if count == 1 and legacy_role == "ADMIN":
+        rbac_role_name = "org_owner"
+
+    # Find the role
+    role_result = await db.execute(
+        select(Role).where(
+            Role.name == rbac_role_name,
+            Role.organization_id.is_(None),
+            Role.is_system_role == True
+        )
+    )
+    role = role_result.scalar_one_or_none()
+
+    if not role:
+        return {
+            "message": f"Role '{rbac_role_name}' not found in database. Please contact administrator.",
+            "repaired": False,
+            "error": True
+        }
+
+    # Create user role assignment
+    user_role_assignment = UserRoleAssignment(
+        user_id=current_user.id,
+        role_id=role.id,
+        organization_id=current_user.organization_id,
+    )
+    db.add(user_role_assignment)
+    await db.commit()
+
+    # Get updated roles
+    roles = await get_user_roles(db, current_user)
+
+    return {
+        "message": f"Successfully assigned role: {role.display_name}",
+        "roles": roles,
+        "repaired": True,
+        "assigned_role": role.display_name
+    }

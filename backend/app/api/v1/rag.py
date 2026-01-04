@@ -1,7 +1,7 @@
 """
 RAG API endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Optional, List
@@ -10,6 +10,7 @@ from uuid import UUID
 
 from app.core.database import get_db, get_pgvector_db
 from app.services.rag_service import RAGService
+from app.services.external_rag_service import ExternalRAGService
 from app.models.vector_store import Collection
 from app.models.user import User
 from app.models.credential import Credential
@@ -218,4 +219,99 @@ async def test_retrieval(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error during retrieval: {str(e)}"
+        )
+
+
+# =============================================================================
+# External RAG (DemystRAG) Endpoints
+# =============================================================================
+
+class ExternalRAGConnectionRequest(BaseModel):
+    """External RAG connection test request."""
+    url: str
+    api_key: str
+
+
+class ExternalRAGSearchRequest(BaseModel):
+    """External RAG search request."""
+    url: str
+    api_key: str
+    query: str
+    collection_id: Optional[int] = None
+    top_k: int = 5
+    similarity_threshold: float = 0.7
+
+
+@router.post("/external/test")
+async def test_external_connection(
+    request: ExternalRAGConnectionRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Test connection to external DemystRAG system."""
+    try:
+        service = ExternalRAGService(
+            base_url=request.url,
+            api_key=request.api_key
+        )
+        result = await service.test_connection()
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e),
+            "collection_count": 0
+        }
+
+
+@router.post("/external/collections")
+async def get_external_collections(
+    request: ExternalRAGConnectionRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Fetch collections from external DemystRAG system."""
+    try:
+        service = ExternalRAGService(
+            base_url=request.url,
+            api_key=request.api_key
+        )
+        collections = await service.list_collections()
+        return {
+            "success": True,
+            "collections": collections
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/external/search")
+async def search_external_rag(
+    request: ExternalRAGSearchRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Search external DemystRAG system."""
+    try:
+        service = ExternalRAGService(
+            base_url=request.url,
+            api_key=request.api_key
+        )
+        chunks = await service.retrieve_relevant_chunks(
+            query=request.query,
+            collection_id=request.collection_id,
+            top_k=request.top_k,
+            score_threshold=request.similarity_threshold
+        )
+        context = await service.format_rag_context(chunks)
+        return {
+            "success": True,
+            "chunks": chunks,
+            "context": context,
+            "total_retrieved": len(chunks)
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
         )

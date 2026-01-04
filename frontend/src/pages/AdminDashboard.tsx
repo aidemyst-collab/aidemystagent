@@ -720,7 +720,7 @@ const AdminDashboard: React.FC = () => {
           form={userForm}
           layout="vertical"
           onFinish={(values) => createUser.mutate(values)}
-          initialValues={{ role: 'creator', isActive: true, isPlatformAdmin: false }}
+          initialValues={{ role: 'developer', isActive: true, isPlatformAdmin: false }}
         >
           <Form.Item
             name="email"
@@ -764,11 +764,45 @@ const AdminDashboard: React.FC = () => {
           <Form.Item
             name="role"
             label="Role"
+            extra="Select the user's role within the organization"
           >
             <Select>
-              <Option value="admin">Admin</Option>
-              <Option value="creator">Creator</Option>
-              <Option value="viewer">Viewer</Option>
+              <Option value="org_owner">
+                <div>
+                  <strong>Organization Owner</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Full control including billing and deletion</div>
+                </div>
+              </Option>
+              <Option value="org_admin">
+                <div>
+                  <strong>Organization Admin</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Organization management without billing</div>
+                </div>
+              </Option>
+              <Option value="agent_admin">
+                <div>
+                  <strong>Agent Admin</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Manage all agents regardless of creator</div>
+                </div>
+              </Option>
+              <Option value="developer">
+                <div>
+                  <strong>Developer</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Create and edit own agents and tools</div>
+                </div>
+              </Option>
+              <Option value="operator">
+                <div>
+                  <strong>Operator</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Execute and deploy agents</div>
+                </div>
+              </Option>
+              <Option value="viewer">
+                <div>
+                  <strong>Viewer</strong>
+                  <div style={{ fontSize: 11, color: '#888' }}>Read-only access to resources</div>
+                </div>
+              </Option>
             </Select>
           </Form.Item>
           <Row gutter={16}>

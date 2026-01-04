@@ -61,6 +61,11 @@ export const Credentials = () => {
       google: 'orange',
       azure_openai: 'cyan',
       custom: 'purple',
+      redis: 'red',
+      postgresql: 'geekblue',
+      mongodb: 'lime',
+      twilio: 'magenta',
+      etisalat: 'gold',
     };
     return colors[provider] || 'default';
   };
@@ -72,6 +77,11 @@ export const Credentials = () => {
       google: 'Google',
       azure_openai: 'Azure OpenAI',
       custom: 'Custom',
+      redis: 'Redis',
+      postgresql: 'PostgreSQL',
+      mongodb: 'MongoDB',
+      twilio: 'Twilio',
+      etisalat: 'Etisalat CPaaS',
     };
     return labels[provider] || provider;
   };

@@ -12,7 +12,7 @@ from app.core.database import Base
 
 
 class CredentialProvider(str, enum.Enum):
-    """Supported LLM providers and database/storage systems"""
+    """Supported LLM providers, database/storage systems, voice providers, and messaging providers"""
     # LLM Providers
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -23,6 +23,11 @@ class CredentialProvider(str, enum.Enum):
     REDIS = "redis"
     POSTGRESQL = "postgresql"
     MONGODB = "mongodb"
+    # Voice Providers
+    TWILIO = "twilio"
+    ETISALAT = "etisalat"
+    # Messaging Providers
+    WHATSAPP_META = "whatsapp_meta"
 
 
 class Credential(Base):

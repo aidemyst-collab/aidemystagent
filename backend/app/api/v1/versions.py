@@ -14,7 +14,7 @@ from app.schemas.version import (
     VersionList,
     VersionCompare,
 )
-from app.api.deps import get_current_active_user, require_permission
+from app.api.deps import get_current_active_user, require_permission, get_effective_organization_id
 
 router = APIRouter()
 
@@ -25,6 +25,7 @@ async def create_version(
     version: VersionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:update")),
 ):
     """Create a new version for an agent."""
@@ -43,8 +44,8 @@ async def create_version(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -89,6 +90,7 @@ async def list_versions(
     limit: int = 100,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:read")),
 ):
     """List all versions for an agent."""
@@ -107,8 +109,8 @@ async def list_versions(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -141,10 +143,11 @@ async def get_version(
     version_number: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:read")),
 ):
     """Get a specific version of an agent."""
-    # First check agent access
+    # First check agent access (using effective org for platform admin switching)
     agent_result = await db.execute(
         select(Agent).where(
             Agent.id == agent_id,
@@ -153,7 +156,7 @@ async def get_version(
     )
     agent = agent_result.scalar_one_or_none()
 
-    if not agent or agent.organization_id != current_user.organization_id:
+    if not agent or agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -183,6 +186,7 @@ async def restore_version(
     description: str = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:update")),
 ):
     """Restore an agent to a previous version."""
@@ -201,8 +205,8 @@ async def restore_version(
             detail="Agent not found",
         )
 
-    # Check organization access
-    if agent.organization_id != current_user.organization_id:
+    # Check organization access (using effective org for platform admin switching)
+    if agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",
@@ -329,10 +333,11 @@ async def delete_version(
     version_number: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("agents:delete")),
 ):
     """Delete a specific version (not recommended for production)."""
-    # Check agent access first
+    # Check agent access first (using effective org for platform admin switching)
     agent_result = await db.execute(
         select(Agent).where(
             Agent.id == agent_id,
@@ -341,7 +346,7 @@ async def delete_version(
     )
     agent = agent_result.scalar_one_or_none()
 
-    if not agent or agent.organization_id != current_user.organization_id:
+    if not agent or agent.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this agent",

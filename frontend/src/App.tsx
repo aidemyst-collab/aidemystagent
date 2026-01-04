@@ -17,6 +17,7 @@ import { Users } from './pages/Users';
 import AdminDashboard from './pages/AdminDashboard';
 import Invitations from './pages/Invitations';
 import AuditLogs from './pages/AuditLogs';
+import ExecutionLogs from './pages/ExecutionLogs';
 import AcceptInvitation from './pages/AcceptInvitation';
 import { MainLayout } from './components/Common/MainLayout';
 import { ProtectedRoute } from './components/Common/ProtectedRoute';
@@ -74,6 +75,7 @@ function App() {
                 <Route path="users/create" element={<Register />} />
                 <Route path="invitations" element={<Invitations />} />
                 <Route path="audit-logs" element={<AuditLogs />} />
+                <Route path="execution-logs" element={<ExecutionLogs />} />
                 <Route path="admin" element={<AdminDashboard />} />
               </Route>
 

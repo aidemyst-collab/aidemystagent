@@ -53,9 +53,13 @@ class ApiClient {
     };
 
     if (!skipAuth) {
-      const { tokens } = useAuthStore.getState();
+      const { tokens, switchedOrganization } = useAuthStore.getState();
       if (tokens?.accessToken) {
         headers['Authorization'] = `Bearer ${tokens.accessToken}`;
+      }
+      // Include organization switch header for platform admins
+      if (switchedOrganization?.id) {
+        headers['X-Organization-Id'] = switchedOrganization.id;
       }
     }
 
@@ -98,9 +102,19 @@ class ApiClient {
       throw new Error(errorMessage);
     }
 
+    // Handle 204 No Content (common for DELETE requests)
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     // Only parse JSON if content-type is JSON
     if (isJson) {
       return response.json();
+    }
+
+    // If no content type or empty response, return undefined
+    if (!contentType || response.headers.get('content-length') === '0') {
+      return undefined as T;
     }
 
     // If expecting JSON but got something else, throw error

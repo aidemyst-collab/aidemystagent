@@ -72,13 +72,16 @@ class AgentExecution(Base):
     __tablename__ = "agent_executions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    input = Column(JSON, nullable=False)
-    output = Column(JSON)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("agents.id"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=True, index=True)
+    input = Column(JSONB, nullable=False)  # Includes node_inputs, session_id, etc.
+    output = Column(JSONB)  # Includes node_outputs, execution_trace, etc.
     tokens_used = Column(Integer, default=0)
     execution_time = Column(Integer)  # in milliseconds
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     # Relationships
     agent = relationship("Agent", back_populates="executions")
+    organization = relationship("Organization")
+    user = relationship("User")

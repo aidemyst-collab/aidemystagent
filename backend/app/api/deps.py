@@ -248,3 +248,95 @@ def get_client_ip(request: Request) -> Optional[str]:
 def get_user_agent(request: Request) -> Optional[str]:
     """Extract user agent from request."""
     return request.headers.get("User-Agent")
+
+
+class OrganizationContext:
+    """
+    Context class that holds the effective organization for the current request.
+    For platform admins, this may be different from their own organization.
+    """
+    def __init__(
+        self,
+        organization_id: UUID,
+        is_switched: bool = False,
+        original_org_id: Optional[UUID] = None
+    ):
+        self.organization_id = organization_id
+        self.is_switched = is_switched
+        self.original_org_id = original_org_id
+
+
+async def get_organization_context(
+    request: Request,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> OrganizationContext:
+    """
+    Get the effective organization context for the current request.
+
+    Platform admins can switch to view other organizations by sending
+    the X-Organization-Id header. Regular users always see their own org.
+
+    Usage:
+        @router.get("/agents")
+        async def list_agents(
+            org_context: OrganizationContext = Depends(get_organization_context),
+        ):
+            # Use org_context.organization_id for queries
+            ...
+    """
+    # Check for organization switch header
+    switch_org_header = request.headers.get("X-Organization-Id")
+
+    if switch_org_header and current_user.is_platform_admin:
+        try:
+            switched_org_id = UUID(switch_org_header)
+
+            # Verify the organization exists and is active
+            from app.models.user import Organization
+            result = await db.execute(
+                select(Organization).where(
+                    Organization.id == switched_org_id,
+                    Organization.deleted_at.is_(None),
+                )
+            )
+            org = result.scalar_one_or_none()
+
+            if org:
+                logger.info(
+                    f"Platform admin {current_user.email} switched to org {org.name} ({switched_org_id})"
+                )
+                return OrganizationContext(
+                    organization_id=switched_org_id,
+                    is_switched=True,
+                    original_org_id=current_user.organization_id,
+                )
+            else:
+                logger.warning(
+                    f"Platform admin {current_user.email} tried to switch to non-existent org {switch_org_header}"
+                )
+        except ValueError:
+            logger.warning(f"Invalid organization ID in header: {switch_org_header}")
+
+    # Default: use user's own organization
+    return OrganizationContext(
+        organization_id=current_user.organization_id,
+        is_switched=False,
+    )
+
+
+async def get_effective_organization_id(
+    org_context: OrganizationContext = Depends(get_organization_context),
+) -> UUID:
+    """
+    Simple dependency that returns just the effective organization ID.
+
+    Usage:
+        @router.get("/agents")
+        async def list_agents(
+            org_id: UUID = Depends(get_effective_organization_id),
+        ):
+            # Use org_id for queries
+            ...
+    """
+    return org_context.organization_id

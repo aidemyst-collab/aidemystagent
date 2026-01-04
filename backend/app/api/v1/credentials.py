@@ -20,7 +20,7 @@ from app.schemas.credential import (
     CredentialTestRequest,
     CredentialTestResponse,
 )
-from app.api.deps import get_current_active_user, require_permission
+from app.api.deps import get_current_active_user, require_permission, get_effective_organization_id
 
 
 router = APIRouter()
@@ -30,17 +30,18 @@ router = APIRouter()
 async def list_credentials(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:read")),
     skip: int = 0,
     limit: int = 100,
     provider: Optional[CredentialProvider] = None,
 ):
     """
-    List all credentials for the current user's organization
+    List all credentials for the effective organization (supports admin org switching)
     """
-    # Build query
+    # Build query (using effective org for platform admin switching)
     query = select(Credential).where(
-        Credential.organization_id == current_user.organization_id
+        Credential.organization_id == effective_org_id
     )
 
     if provider:
@@ -53,7 +54,7 @@ async def list_credentials(
 
     # Get total count
     count_query = select(func.count(Credential.id)).where(
-        Credential.organization_id == current_user.organization_id
+        Credential.organization_id == effective_org_id
     )
     if provider:
         count_query = count_query.where(Credential.provider == provider)
@@ -74,6 +75,7 @@ async def get_credential(
     credential_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:read")),
 ):
     """
@@ -90,8 +92,8 @@ async def get_credential(
             detail="Credential not found",
         )
 
-    # Check access permissions
-    if credential.organization_id != current_user.organization_id:
+    # Check access permissions (using effective org for platform admin switching)
+    if credential.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this credential",
@@ -105,15 +107,16 @@ async def create_credential(
     credential_data: CredentialCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:create")),
 ):
     """
     Create a new credential
     """
-    # Check if credential with same name already exists for this organization
+    # Check if credential with same name already exists for this organization (using effective org)
     existing = await db.execute(
         select(Credential).where(
-            Credential.organization_id == current_user.organization_id,
+            Credential.organization_id == effective_org_id,
             Credential.name == credential_data.name,
         )
     )
@@ -134,11 +137,11 @@ async def create_credential(
         # LLM credential - use api_key
         credential_value = credential_data.api_key
 
-    # Create new credential
+    # Create new credential (using effective org for platform admin switching)
     # TODO: Encrypt credential value before storing
     new_credential = Credential(
         user_id=current_user.id,
-        organization_id=current_user.organization_id,
+        organization_id=effective_org_id,
         name=credential_data.name,
         provider=credential_data.provider,
         api_key=credential_value,  # In production, encrypt this
@@ -161,6 +164,7 @@ async def update_credential(
     credential_data: CredentialUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:update")),
 ):
     """
@@ -177,8 +181,8 @@ async def update_credential(
             detail="Credential not found",
         )
 
-    # Check access permissions
-    if credential.organization_id != current_user.organization_id:
+    # Check access permissions (using effective org for platform admin switching)
+    if credential.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this credential",
@@ -207,6 +211,7 @@ async def delete_credential(
     credential_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:delete")),
 ):
     """
@@ -223,8 +228,8 @@ async def delete_credential(
             detail="Credential not found",
         )
 
-    # Check access permissions
-    if credential.organization_id != current_user.organization_id:
+    # Check access permissions (using effective org for platform admin switching)
+    if credential.organization_id != effective_org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this credential",
@@ -241,6 +246,7 @@ async def test_credential(
     test_request: CredentialTestRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("credentials:read")),
 ):
     """
@@ -261,8 +267,8 @@ async def test_credential(
                     message="Credential not found",
                 )
 
-            # Check access permissions
-            if credential.organization_id != current_user.organization_id:
+            # Check access permissions (using effective org for platform admin switching)
+            if credential.organization_id != effective_org_id:
                 return CredentialTestResponse(
                     success=False,
                     message="You don't have access to this credential",

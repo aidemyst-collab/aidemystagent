@@ -22,6 +22,13 @@ import {
   SubgraphNode,
   FileReaderNode,
   StructuredOutputParserNode,
+  AudioToTextNode,
+  TextToAudioNode,
+  CodeNode,
+  VoiceInputNode,
+  VoiceOutputNode,
+  WhatsAppInputNode,
+  WhatsAppOutputNode,
 } from './nodes';
 import { CustomEdge } from './CustomEdge';
 import type { AgentNode, AgentEdge, NodeType } from '../../types/agent';
@@ -37,6 +44,13 @@ const nodeTypes: NodeTypes = {
   SubgraphNode,
   FileReaderNode,
   StructuredOutputParserNode,
+  AudioToTextNode,
+  TextToAudioNode,
+  CodeNode,
+  VoiceInputNode,
+  VoiceOutputNode,
+  WhatsAppInputNode,
+  WhatsAppOutputNode,
 };
 
 // Map NodeType to component name
@@ -51,6 +65,13 @@ const nodeTypeMapping: Record<string, string> = {
   'SUBGRAPH': 'SubgraphNode',
   'FILE_READER': 'FileReaderNode',
   'STRUCTURED_OUTPUT_PARSER': 'StructuredOutputParserNode',
+  'AUDIO_TO_TEXT': 'AudioToTextNode',
+  'TEXT_TO_AUDIO': 'TextToAudioNode',
+  'CODE': 'CodeNode',
+  'VOICE_INPUT': 'VoiceInputNode',
+  'VOICE_OUTPUT': 'VoiceOutputNode',
+  'WHATSAPP_INPUT': 'WhatsAppInputNode',
+  'WHATSAPP_OUTPUT': 'WhatsAppOutputNode',
 };
 
 const edgeTypes: EdgeTypes = {
