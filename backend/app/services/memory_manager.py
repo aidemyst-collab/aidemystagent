@@ -5,10 +5,6 @@ Multi-tenant session management with organization and workflow isolation.
 
 from typing import List, Optional, Dict, Any
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain.memory import (
-    ConversationBufferMemory,
-    ConversationBufferWindowMemory,
-)
 import redis.asyncio as aioredis
 import json
 from datetime import datetime, timedelta

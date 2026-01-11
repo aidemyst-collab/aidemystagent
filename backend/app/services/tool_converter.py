@@ -3,7 +3,6 @@ Tool Converter - Converts database tools to LangChain-compatible format
 """
 from typing import List, Any, Dict, Optional
 from langchain_core.tools import tool
-from langchain_core.pydantic_v1 import BaseModel, Field
 from app.models.tool import Tool, ToolType
 from app.services.tools import tool_registry, APIIntegrationTool
 
