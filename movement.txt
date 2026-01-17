@@ -1,0 +1,118 @@
+Step-by-Step Azure Deployment Guide
+
+  Phase 1: Prerequisites
+
+  1. Install Azure CLI
+  # macOS
+  brew install azure-cli
+
+  # Verify installation
+  az --version
+
+  2. Login to Azure
+  az login
+
+  3. Select your subscription
+  az account list --output table
+  az account set --subscription "<subscription-name-or-id>"
+
+  ---
+  Phase 2: Create Azure Resources (One-time Setup)
+
+  Run the provided deployment script:
+
+  cd /Users/azamkhan/AiProjects/aidemystagent/aidemystagent
+
+  # Make the script executable
+  chmod +x scripts/deploy-azure.sh
+
+  # Run the deployment script
+  ./scripts/deploy-azure.sh
+
+  This script creates:
+  | Resource                   | Name              | Purpose                     |
+  |----------------------------|-------------------|-----------------------------|
+  | Resource Group             | agentstudio-rg    | Container for all resources |
+  | Container Registry         | agentstudioacr    | Docker image storage        |
+  | PostgreSQL                 | agentstudio-db    | Database                    |
+  | Redis Cache                | agentstudio-redis | Caching/sessions            |
+  | Key Vault                  | agentstudio-kv    | Secrets management          |
+  | Container Apps Environment | agentstudio-env   | App hosting                 |
+  | Log Analytics              | agentstudio-logs  | Monitoring                  |
+
+  ---
+  Phase 3: Configure GitHub Secrets
+
+  After the script runs, add these secrets to your GitHub repository:
+
+  Go to: GitHub → Repository → Settings → Secrets and variables → Actions → New repository secret
+
+  | Secret Name       | Value (from .azure-credentials.env)               |
+  |-------------------|---------------------------------------------------|
+  | AZURE_CREDENTIALS | Azure Service Principal JSON*                     |
+  | ACR_LOGIN_SERVER  | agentstudioacr.azurecr.io                         |
+  | ACR_USERNAME      | ACR admin username                                |
+  | ACR_PASSWORD      | ACR admin password                                |
+  | API_BASE_URL      | https://agentstudio-backend.azurecontainerapps.io |
+
+  Create Azure Service Principal (for AZURE_CREDENTIALS):
+  az ad sp create-for-rbac \
+    --name "agentstudio-github-actions" \
+    --role contributor \
+    --scopes /subscriptions/<subscription-id>/resourceGroups/agentstudio-rg \
+    --json-auth
+
+  Copy the entire JSON output as the AZURE_CREDENTIALS secret.
+
+  ---
+  Phase 4: Trigger Deployment
+
+  Option A: Automatic (push to branch)
+  git push origin development   # Deploys to staging
+  git push origin main          # Deploys to production
+
+  Option B: Manual (workflow dispatch)
+  1. Go to GitHub → Actions → "Deploy to Azure"
+  2. Click "Run workflow"
+  3. Select environment (staging/production)
+  4. Click "Run workflow"
+
+  ---
+  Phase 5: Verify Deployment
+
+  After deployment completes:
+
+  # Get your app URLs
+  az containerapp show -g agentstudio-rg -n agentstudio-backend --query properties.configuration.ingress.fqdn -o tsv
+  az containerapp show -g agentstudio-rg -n agentstudio-frontend --query properties.configuration.ingress.fqdn -o tsv
+
+  URLs:
+  - Frontend: https://agentstudio-frontend.<region>.azurecontainerapps.io
+  - Backend: https://agentstudio-backend.<region>.azurecontainerapps.io
+  - API Docs: https://agentstudio-backend.<region>.azurecontainerapps.io/docs
+
+  ---
+  Phase 6: Add LLM API Keys
+
+  After deployment, log into your app and add credentials:
+  1. Navigate to Credentials page
+  2. Add OPENAI_API_KEY
+  3. Add ANTHROPIC_API_KEY (if using Claude)
+
+  ---
+  Quick Reference Commands
+
+  # View logs
+  az containerapp logs show -g agentstudio-rg -n agentstudio-backend --follow
+
+  # Restart app
+  az containerapp revision restart -g agentstudio-rg -n agentstudio-backend
+
+  # Scale app
+  az containerapp update -g agentstudio-rg -n agentstudio-backend --min-replicas 2 --max-replicas 10
+
+  # Run migrations manually
+  az containerapp exec -g agentstudio-rg -n agentstudio-backend --command "alembic upgrade head"
+
+  ---
+  Would you like me to help you with any specific step, such as creating the Azure service principal or modifying the deployment configuration?

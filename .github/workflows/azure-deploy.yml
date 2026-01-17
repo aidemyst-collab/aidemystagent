@@ -1,4 +1,5 @@
 # Azure Container Apps Deployment Pipeline
+# Last updated: 2026-01-17 - Initial Azure deployment
 name: Deploy to Azure
 
 on:
