@@ -1,12 +1,20 @@
 import logging
 import sys
+import os
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
-# Create logs directory
-LOGS_DIR = Path("logs")
-LOGS_DIR.mkdir(exist_ok=True)
+# Create logs directory - use absolute path from app root
+APP_DIR = Path(__file__).parent.parent.parent  # /app
+LOGS_DIR = APP_DIR / "logs"
+
+# Try to create logs directory, fall back to /tmp if permission denied
+try:
+    LOGS_DIR.mkdir(exist_ok=True)
+except PermissionError:
+    LOGS_DIR = Path("/tmp/logs")
+    LOGS_DIR.mkdir(exist_ok=True)
 
 # Configure logging format
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
