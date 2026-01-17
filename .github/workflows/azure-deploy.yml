@@ -123,14 +123,14 @@ jobs:
         with:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ env.BACKEND_APP_NAME }}
-          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:${{ github.sha }}
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:development
 
       - name: Deploy Frontend to Container Apps
         uses: azure/container-apps-deploy-action@v1
         with:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ env.FRONTEND_APP_NAME }}
-          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:${{ github.sha }}
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:development
 
       - name: Health Check - Backend
         run: |
