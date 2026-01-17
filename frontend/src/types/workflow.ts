@@ -401,6 +401,11 @@ export interface Workflow extends WorkflowConfig {
   updatedAt: string;
   creatorId: string;
   organizationId: string;
+  // Optional config wrapper from API response
+  config?: {
+    nodes?: WorkflowNode[];
+    edges?: WorkflowEdge[];
+  };
 }
 
 // Helper type guards

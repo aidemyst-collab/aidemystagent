@@ -72,7 +72,7 @@ export const Templates: React.FC = () => {
 
   const handleClone = async (templateId: string) => {
     try {
-      const data = await apiClient.post(`/templates/${templateId}/clone`);
+      const data = await apiClient.post(`/templates/${templateId}/clone`) as { id: string; name: string };
       message.success(`Template cloned successfully: ${data.name}`);
 
       // Navigate to the agent builder with the new agent

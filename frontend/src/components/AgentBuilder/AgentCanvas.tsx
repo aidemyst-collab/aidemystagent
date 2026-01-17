@@ -1,4 +1,5 @@
-import { useCallback, useState, useEffect, DragEvent } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+import type { DragEvent } from 'react';
 import {
   ReactFlow,
   MiniMap,

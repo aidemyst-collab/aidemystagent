@@ -1,12 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workflowService } from './workflowService';
 import { message } from 'antd';
+import type { Workflow, WorkflowNode, WorkflowEdge } from '../../types/workflow';
+
+interface CreateWorkflowData {
+  name: string;
+  description: string;
+  executionSettings: {
+    timeout: number;
+    retryPolicy: {
+      maxRetries: number;
+      retryDelay: number;
+    };
+  };
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  status: 'draft' | 'deployed' | 'archived';
+  version: number;
+}
 
 export const useCreateWorkflow = () => {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: (data) => {
+  return useMutation<Workflow, Error, CreateWorkflowData>({
+    mutationFn: (data: CreateWorkflowData) => {
       console.log('useCreateWorkflow mutationFn called with:', data);
       return workflowService.createWorkflow(data);
     },

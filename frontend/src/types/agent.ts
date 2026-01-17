@@ -9,10 +9,10 @@ export type NodeType =
   | 'OUTPUT'
   | 'SUBGRAPH';
 
-export interface AgentNodeData {
+export interface AgentNodeData extends Record<string, unknown> {
   label: string;
   type: NodeType;
-  config?: Record<string, any>;
+  config?: Record<string, unknown>;
 }
 
 export type AgentNode = Node<AgentNodeData>;
