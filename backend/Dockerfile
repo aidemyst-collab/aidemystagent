@@ -31,6 +31,9 @@ COPY --from=builder /root/.local /home/appuser/.local
 # Copy application code
 COPY --chown=appuser:appuser . .
 
+# Create logs directory with proper permissions
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+
 # Set environment variables
 ENV PATH=/home/appuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
