@@ -80,7 +80,7 @@ async def seed_admin_user(secret: str):
     import os
     from sqlalchemy import text
     from passlib.context import CryptContext
-    from app.core.database import async_engine
+    from app.core.database import engine as async_engine
 
     # Verify secret (use environment variable or hardcoded for initial setup)
     expected_secret = os.getenv("SETUP_SECRET", "agentstudio-setup-2026")
