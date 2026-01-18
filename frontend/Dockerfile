@@ -16,7 +16,9 @@ COPY . .
 
 # Build argument for API URL
 ARG VITE_API_BASE_URL=http://localhost:8000
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
+# Create .env file for Vite to read during build
+RUN echo "VITE_API_BASE_URL=${VITE_API_BASE_URL}" > .env
 
 # Build the application
 RUN npm run build
