@@ -79,25 +79,44 @@ async def run_migrations(secret: str):
     Protected by secret key. Remove after use.
     """
     import os
-    import subprocess
+    from sqlalchemy import text
+    from app.core.database import engine as async_engine
 
     expected_secret = os.getenv("SETUP_SECRET", "agentstudio-setup-2026")
     if secret != expected_secret:
         return {"error": "Invalid secret"}
 
     try:
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            cwd="/app",
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        return {
-            "message": "Migration completed",
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "returncode": result.returncode
-        }
+        async with async_engine.begin() as conn:
+            # Check if column already exists
+            result = await conn.execute(text("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'agent_executions' AND column_name = 'organization_id'
+            """))
+            if result.fetchone():
+                return {"message": "Column already exists"}
+
+            # Add organization_id column
+            await conn.execute(text("""
+                ALTER TABLE agent_executions
+                ADD COLUMN organization_id UUID REFERENCES organizations(id)
+            """))
+
+            # Create index
+            await conn.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_agent_executions_organization_id
+                ON agent_executions(organization_id)
+            """))
+
+            # Backfill from agents table
+            await conn.execute(text("""
+                UPDATE agent_executions ae
+                SET organization_id = a.organization_id
+                FROM agents a
+                WHERE ae.agent_id = a.id
+                AND ae.organization_id IS NULL
+            """))
+
+        return {"message": "Migration completed successfully"}
     except Exception as e:
         return {"error": str(e)}
