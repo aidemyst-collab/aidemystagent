@@ -70,3 +70,34 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+
+@app.post("/setup/run-migrations")
+async def run_migrations(secret: str):
+    """
+    One-time endpoint to run database migrations.
+    Protected by secret key. Remove after use.
+    """
+    import os
+    import subprocess
+
+    expected_secret = os.getenv("SETUP_SECRET", "agentstudio-setup-2026")
+    if secret != expected_secret:
+        return {"error": "Invalid secret"}
+
+    try:
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            cwd="/app",
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        return {
+            "message": "Migration completed",
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode
+        }
+    except Exception as e:
+        return {"error": str(e)}
