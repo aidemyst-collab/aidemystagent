@@ -69,7 +69,7 @@ export const workflowService = {
    * Get all workflows for current user
    */
   getWorkflows: async (): Promise<Workflow[]> => {
-    const response = await apiClient.get<{ total: number; workflows: Workflow[] }>('/workflows/');
+    const response = await apiClient.get<{ total: number; workflows: Workflow[] }>('/workflows');
     return response.workflows;
   },
 

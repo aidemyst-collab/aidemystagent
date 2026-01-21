@@ -43,7 +43,7 @@ const subscriptionStatusColors: Record<string, string> = {
 
 // Fetch all organizations for platform admin switcher
 const fetchAllOrganizations = async (): Promise<{ organizations: Organization[]; total: number }> => {
-  return apiClient.get('/organizations/');
+  return apiClient.get('/organizations');
 };
 
 export const MainLayout = () => {

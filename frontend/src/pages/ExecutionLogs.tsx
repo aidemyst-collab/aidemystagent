@@ -90,7 +90,7 @@ const fetchExecutions = async (params: {
 
 // Fetch workflows for filter dropdown
 const fetchWorkflows = async (): Promise<{ workflows: { id: string; name: string }[] }> => {
-  return apiClient.get('/workflows/');
+  return apiClient.get('/workflows');
 };
 
 const ExecutionLogs: React.FC = () => {
