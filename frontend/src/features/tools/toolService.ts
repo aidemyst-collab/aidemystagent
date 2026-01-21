@@ -85,7 +85,7 @@ export const toolService = {
    * Create a new custom tool
    */
   createTool: async (data: CreateToolRequest): Promise<Tool> => {
-    return apiClient.post<Tool>('/tools/', data);
+    return apiClient.post<Tool>('/tools', data);
   },
 
   /**

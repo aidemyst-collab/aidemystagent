@@ -169,7 +169,7 @@ export const adminService = {
   },
 
   createOrganization: async (data: CreateOrganizationRequest): Promise<OrganizationAdmin> => {
-    return apiClient.post<OrganizationAdmin>('/organizations/', {
+    return apiClient.post<OrganizationAdmin>('/organizations', {
       name: data.name,
       slug: data.slug,
       description: data.description,

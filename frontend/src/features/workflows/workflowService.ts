@@ -36,7 +36,7 @@ export const workflowService = {
       config
     };
     console.log('Creating workflow with payload:', payload);
-    return apiClient.post<Workflow>('/workflows/', payload);
+    return apiClient.post<Workflow>('/workflows', payload);
   },
 
   /**
