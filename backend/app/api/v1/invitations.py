@@ -157,7 +157,7 @@ async def get_invitation_response(
     )
 
 
-@router.post("/", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     invitation_data: InvitationCreate,
     db: AsyncSession = Depends(get_db),
@@ -229,7 +229,7 @@ async def create_invitation(
     return await get_invitation_response(db, invitation)
 
 
-@router.get("/", response_model=InvitationListResponse)
+@router.get("", response_model=InvitationListResponse)
 async def list_invitations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

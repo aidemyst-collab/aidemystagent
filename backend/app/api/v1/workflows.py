@@ -25,7 +25,7 @@ from app.api.deps import (
 router = APIRouter()
 
 
-@router.post("/", response_model=WorkflowResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=WorkflowResponse, status_code=status.HTTP_201_CREATED)
 async def create_workflow(
     workflow_data: WorkflowCreate,
     db: AsyncSession = Depends(get_db),
@@ -50,7 +50,7 @@ async def create_workflow(
     return WorkflowResponse.model_validate(workflow)
 
 
-@router.get("/", response_model=WorkflowListResponse)
+@router.get("", response_model=WorkflowListResponse)
 async def list_workflows(
     skip: int = 0,
     limit: int = 100,

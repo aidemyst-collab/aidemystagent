@@ -29,7 +29,7 @@ from app.api.deps import (
 router = APIRouter()
 
 
-@router.post("/", response_model=DeploymentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DeploymentResponse, status_code=status.HTTP_201_CREATED)
 async def create_deployment(
     deployment: DeploymentCreate,
     db: AsyncSession = Depends(get_db),
@@ -92,7 +92,7 @@ async def create_deployment(
     return db_deployment
 
 
-@router.get("/", response_model=DeploymentList)
+@router.get("", response_model=DeploymentList)
 async def list_deployments(
     agent_id: UUID = None,
     environment: DeploymentEnvironment = None,

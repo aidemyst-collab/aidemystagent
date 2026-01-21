@@ -149,7 +149,7 @@ async def build_user_response(db: AsyncSession, user: User) -> UserResponse:
     )
 
 
-@router.get("/", response_model=UserListResponse)
+@router.get("", response_model=UserListResponse)
 async def list_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),

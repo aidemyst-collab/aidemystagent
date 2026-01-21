@@ -51,7 +51,7 @@ async def execute_builtin_tool(
     return result
 
 
-@router.get("/", response_model=ToolListResponse)
+@router.get("", response_model=ToolListResponse)
 async def list_tools(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -116,7 +116,7 @@ async def get_tool(
     return tool
 
 
-@router.post("/", response_model=ToolResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ToolResponse, status_code=status.HTTP_201_CREATED)
 async def create_tool(
     tool_data: ToolCreate,
     db: AsyncSession = Depends(get_db),

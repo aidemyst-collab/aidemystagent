@@ -119,7 +119,7 @@ async def list_organizations_public(
     return OrganizationSummaryListResponse(organizations=org_responses, total=total)
 
 
-@router.get("/", response_model=OrganizationListResponse)
+@router.get("", response_model=OrganizationListResponse)
 async def list_organizations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -290,7 +290,7 @@ async def get_organization(
     )
 
 
-@router.post("/", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=OrganizationResponse, status_code=status.HTTP_201_CREATED)
 async def create_organization(
     org_data: OrganizationCreate,
     db: AsyncSession = Depends(get_db),

@@ -25,7 +25,7 @@ from app.services.permission_service import PermissionService
 router = APIRouter()
 
 
-@router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
 async def create_agent(
     agent_data: AgentCreate,
     db: AsyncSession = Depends(get_db),
@@ -48,7 +48,7 @@ async def create_agent(
     return AgentResponse.model_validate(agent)
 
 
-@router.get("/", response_model=AgentListResponse)
+@router.get("", response_model=AgentListResponse)
 async def list_agents(
     skip: int = 0,
     limit: int = 100,

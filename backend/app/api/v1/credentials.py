@@ -26,7 +26,7 @@ from app.api.deps import get_current_active_user, require_permission, get_effect
 router = APIRouter()
 
 
-@router.get("/", response_model=CredentialListResponse)
+@router.get("", response_model=CredentialListResponse)
 async def list_credentials(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -102,7 +102,7 @@ async def get_credential(
     return CredentialResponse.from_orm_with_preview(credential)
 
 
-@router.post("/", response_model=CredentialResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CredentialResponse, status_code=status.HTTP_201_CREATED)
 async def create_credential(
     credential_data: CredentialCreate,
     db: AsyncSession = Depends(get_db),
