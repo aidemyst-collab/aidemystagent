@@ -83,41 +83,41 @@ export const credentialService = {
     if (limit !== undefined) params.append('limit', limit.toString());
     if (provider) params.append('provider', provider);
 
-    return apiClient.get(`/credentials/?${params.toString()}`);
+    return apiClient.get(`/credentials?${params.toString()}`);
   },
 
   /**
    * Get a single credential by ID
    */
   async getCredential(credentialId: string): Promise<Credential> {
-    return apiClient.get(`/credentials/${credentialId}/`);
+    return apiClient.get(`/credentials/${credentialId}`);
   },
 
   /**
    * Create a new credential
    */
   async createCredential(data: CreateCredentialRequest): Promise<Credential> {
-    return apiClient.post('/credentials/', data);
+    return apiClient.post('/credentials', data);
   },
 
   /**
    * Update an existing credential
    */
   async updateCredential(credentialId: string, data: UpdateCredentialRequest): Promise<Credential> {
-    return apiClient.put(`/credentials/${credentialId}/`, data);
+    return apiClient.put(`/credentials/${credentialId}`, data);
   },
 
   /**
    * Delete a credential
    */
   async deleteCredential(credentialId: string): Promise<void> {
-    return apiClient.delete(`/credentials/${credentialId}/`);
+    return apiClient.delete(`/credentials/${credentialId}`);
   },
 
   /**
    * Test a credential to verify it works
    */
   async testCredential(data: TestCredentialRequest): Promise<TestCredentialResponse> {
-    return apiClient.post('/credentials/test/', data);
+    return apiClient.post('/credentials/test', data);
   },
 };

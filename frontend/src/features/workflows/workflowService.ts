@@ -44,7 +44,7 @@ export const workflowService = {
    */
   updateWorkflow: async (id: string, data: Partial<CreateWorkflowRequest>): Promise<Workflow> => {
     const { name, description, ...config } = data;
-    return apiClient.put<Workflow>(`/workflows/${id}/`, {
+    return apiClient.put<Workflow>(`/workflows/${id}`, {
       name,
       description,
       config
@@ -62,7 +62,7 @@ export const workflowService = {
    * Get workflow by ID
    */
   getWorkflow: async (id: string): Promise<Workflow> => {
-    return apiClient.get<Workflow>(`/workflows/${id}/`);
+    return apiClient.get<Workflow>(`/workflows/${id}`);
   },
 
   /**
@@ -77,14 +77,14 @@ export const workflowService = {
    * Delete a workflow
    */
   deleteWorkflow: async (id: string): Promise<void> => {
-    return apiClient.delete<void>(`/workflows/${id}/`);
+    return apiClient.delete<void>(`/workflows/${id}`);
   },
 
   /**
    * Execute a workflow
    */
   executeWorkflow: async (id: string, input: string, inputMode?: string, sessionId?: string): Promise<any> => {
-    return apiClient.post<any>(`/workflows/${id}/execute/`, {
+    return apiClient.post<any>(`/workflows/${id}/execute`, {
       input,
       input_mode: inputMode,
       session_id: sessionId
