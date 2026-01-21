@@ -12,7 +12,7 @@ from app.api.deps import get_current_active_user, require_permission, get_effect
 router = APIRouter()
 
 
-@router.get("")
+@router.get("/")
 async def list_templates(
     current_user: User = Depends(get_current_active_user),
     _: None = Depends(require_permission("agents:read")),

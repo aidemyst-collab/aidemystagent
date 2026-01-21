@@ -19,6 +19,7 @@ app = FastAPI(
     description="AI Agent Creation & Management Platform API",
     docs_url="/docs",
     redoc_url="/redoc",
+    redirect_slashes=False,
 )
 
 # Exception handlers
