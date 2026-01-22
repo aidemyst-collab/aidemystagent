@@ -19,7 +19,7 @@ from app.core.database import get_db, get_pgvector_db
 from app.core.redis_client import get_redis
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.agent import Agent, AgentExecution
-from app.models.organization import Organization
+from app.models.user import Organization
 import redis.asyncio as aioredis
 
 router = APIRouter()

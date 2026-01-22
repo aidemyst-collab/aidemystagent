@@ -10,8 +10,7 @@ from app.core.database import get_db
 from app.core.redis_client import get_redis
 from app.models.deployment import Deployment, DeploymentStatus, DeploymentEnvironment
 from app.models.agent import Agent, AgentExecution
-from app.models.user import User
-from app.models.organization import Organization
+from app.models.user import User, Organization
 from app.core.config import settings
 from app.services.langgraph_engine import LangGraphEngine
 import redis.asyncio as aioredis
