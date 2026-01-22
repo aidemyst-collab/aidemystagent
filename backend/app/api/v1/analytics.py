@@ -8,7 +8,7 @@ from uuid import UUID
 from app.core.database import get_db
 from app.models.agent import Agent, AgentExecution
 from app.models.user import User
-from app.api.deps import get_current_active_user, require_permission
+from app.api.deps import get_current_active_user, require_permission, get_effective_organization_id
 
 router = APIRouter()
 
@@ -20,12 +20,15 @@ async def get_analytics(
     end_date: Optional[datetime] = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("analytics:read")),
 ) -> Dict[str, Any]:
-    """Get analytics data for agents and executions."""
+    """Get analytics data for agents and executions filtered by organization."""
 
-    # Build base query for executions
-    executions_query = select(AgentExecution)
+    # Build base query for executions - filter by organization
+    executions_query = select(AgentExecution).where(
+        AgentExecution.organization_id == effective_org_id
+    )
 
     if agent_id:
         executions_query = executions_query.where(AgentExecution.agent_id == agent_id)
@@ -34,8 +37,10 @@ async def get_analytics(
     if end_date:
         executions_query = executions_query.where(AgentExecution.created_at <= end_date)
 
-    # Total agents
-    agents_result = await db.execute(select(func.count(Agent.id)))
+    # Total agents - filter by organization
+    agents_result = await db.execute(
+        select(func.count(Agent.id)).where(Agent.organization_id == effective_org_id)
+    )
     total_agents = agents_result.scalar() or 0
 
     # Total executions
@@ -67,13 +72,14 @@ async def get_analytics(
         else 0
     )
 
-    # Executions by agent
+    # Executions by agent - filter by organization
     executions_by_agent_query = (
         select(
             Agent.name,
             func.count(AgentExecution.id).label("count")
         )
         .join(AgentExecution, Agent.id == AgentExecution.agent_id)
+        .where(Agent.organization_id == effective_org_id)
         .group_by(Agent.name)
         .order_by(func.count(AgentExecution.id).desc())
         .limit(10)
@@ -94,12 +100,13 @@ async def get_analytics(
         for row in executions_by_agent_result.all()
     ]
 
-    # Executions over time (last 7 days)
+    # Executions over time (last 7 days) - filter by organization
     executions_over_time_query = (
         select(
             func.date(AgentExecution.created_at).label("date"),
             func.count(AgentExecution.id).label("count")
         )
+        .where(AgentExecution.organization_id == effective_org_id)
         .group_by(func.date(AgentExecution.created_at))
         .order_by(func.date(AgentExecution.created_at).desc())
         .limit(7)
