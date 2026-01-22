@@ -262,7 +262,7 @@ async def deploy_workflow(
     )
 
 
-@router.post("/{workflow_id}/execute/")
+@router.post("/{workflow_id}/execute")
 async def execute_workflow(
     workflow_id: UUID,
     request: dict,
@@ -374,7 +374,7 @@ async def execute_workflow(
     }
 
 
-@router.get("/{workflow_id}/executions/")
+@router.get("/{workflow_id}/executions")
 async def list_workflow_executions(
     workflow_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -528,7 +528,7 @@ async def list_organization_executions(
     }
 
 
-@router.get("/{workflow_id}/sessions/")
+@router.get("/{workflow_id}/sessions")
 async def list_workflow_sessions(
     workflow_id: UUID,
     db: AsyncSession = Depends(get_db),

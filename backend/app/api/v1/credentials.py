@@ -241,7 +241,7 @@ async def delete_credential(
     return None
 
 
-@router.post("/test/", response_model=CredentialTestResponse)
+@router.post("/test", response_model=CredentialTestResponse)
 async def test_credential(
     test_request: CredentialTestRequest,
     db: AsyncSession = Depends(get_db),
