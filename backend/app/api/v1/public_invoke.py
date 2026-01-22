@@ -161,9 +161,7 @@ async def invoke_deployment_public(
         engine = LangGraphEngine(
             db=db,
             pgvector_db=pgvector_db,
-            redis=redis,
-            user_id=None,  # Public invocation - no user context
-            organization_id=organization.id,
+            redis_client=redis,
         )
 
         # Prepare input
