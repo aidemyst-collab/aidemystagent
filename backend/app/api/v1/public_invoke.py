@@ -20,7 +20,6 @@ from app.core.redis_client import get_redis
 from app.models.deployment import Deployment, DeploymentStatus
 from app.models.agent import Agent, AgentExecution
 from app.models.organization import Organization
-from app.services.langgraph_engine import LangGraphEngine
 import redis.asyncio as aioredis
 
 router = APIRouter()
@@ -158,6 +157,7 @@ async def invoke_deployment_public(
 
     # 7. Execute the agent
     try:
+        from app.services.langgraph_engine import LangGraphEngine
         engine = LangGraphEngine(
             db=db,
             pgvector_db=pgvector_db,
