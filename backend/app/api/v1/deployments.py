@@ -11,6 +11,8 @@ from app.core.redis_client import get_redis
 from app.models.deployment import Deployment, DeploymentStatus, DeploymentEnvironment
 from app.models.agent import Agent, AgentExecution
 from app.models.user import User
+from app.models.organization import Organization
+from app.core.config import settings
 from app.services.langgraph_engine import LangGraphEngine
 import redis.asyncio as aioredis
 import time
@@ -60,6 +62,17 @@ async def create_deployment(
             detail="You don't have access to this agent",
         )
 
+    # Get organization for slug
+    org_result = await db.execute(
+        select(Organization).where(Organization.id == effective_org_id)
+    )
+    organization = org_result.scalar_one_or_none()
+    if not organization:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Organization not found",
+        )
+
     # Generate API key for the deployment
     api_key = f"sk-{secrets.token_urlsafe(32)}"
 
@@ -80,8 +93,13 @@ async def create_deployment(
     await db.commit()
     await db.refresh(db_deployment)
 
-    # Now update endpoint URL with the actual deployment ID
-    db_deployment.endpoint_url = f"/api/v1/deployments/{db_deployment.id}/invoke"
+    # Generate org-scoped endpoint URL
+    # Format: /orgs/{org_slug}/deployments/{deployment_id}/invoke
+    base_url = getattr(settings, 'API_BASE_URL', '')
+    if base_url:
+        db_deployment.endpoint_url = f"{base_url}/orgs/{organization.slug}/deployments/{db_deployment.id}/invoke"
+    else:
+        db_deployment.endpoint_url = f"/orgs/{organization.slug}/deployments/{db_deployment.id}/invoke"
 
     # Simulate deployment (in real implementation, this would trigger async job)
     db_deployment.status = DeploymentStatus.ACTIVE

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # Server
     API_V1_PREFIX: str = "/api/v1"
+    API_BASE_URL: str = ""  # e.g., "https://api.agentstudio.io" - used for deployment URLs
     HOST: str = "0.0.0.0"
     PORT: int = 8000
 
