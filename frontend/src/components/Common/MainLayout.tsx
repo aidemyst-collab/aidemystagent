@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Typography, Tag, Select, Tooltip, Space } from 'antd';
+import { useEffect, useState } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Typography, Tag, Select, Tooltip, Space, Button } from 'antd';
 import {
   DashboardOutlined,
   RocketOutlined,
@@ -20,6 +20,9 @@ import {
   SwapOutlined,
   EyeOutlined,
   CloseCircleOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, usePermissions, useOrganizationSwitcher } from '../../features/auth/authStore';
@@ -62,6 +65,19 @@ export const MainLayout = () => {
     clearSwitch,
   } = useOrganizationSwitcher();
   const queryClient = useQueryClient();
+
+  // Sidebar collapsed state - persisted in localStorage
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem('sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Save collapsed state to localStorage
+  const toggleCollapsed = () => {
+    const newState = !collapsed;
+    setCollapsed(newState);
+    localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
+  };
 
   // Fetch organizations for platform admin switcher
   const { data: orgsData } = useQuery({
@@ -218,26 +234,50 @@ export const MainLayout = () => {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
-        breakpoint="lg"
-        collapsedWidth="0"
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        trigger={null}
+        width={220}
+        collapsedWidth={80}
         theme="light"
         style={{
           borderRight: '1px solid #f0f0f0',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 100,
+          overflow: 'auto',
         }}
       >
-        <div className="p-4 text-center border-b border-gray-200">
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            AgentStudio
-          </Typography.Title>
+        <div
+          className="border-b border-gray-200"
+          style={{
+            padding: collapsed ? '16px 8px' : '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: '10px',
+            height: '64px',
+          }}
+        >
+          <RobotOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+          {!collapsed && (
+            <Typography.Title level={4} style={{ margin: 0, color: '#312e81' }}>
+              AgentStudio
+            </Typography.Title>
+          )}
         </div>
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}
           items={menuItems}
           style={{ borderRight: 0 }}
+          inlineCollapsed={collapsed}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ marginLeft: collapsed ? 80 : 220, transition: 'margin-left 0.2s' }}>
         <Header
           style={{
             background: '#fff',
@@ -249,8 +289,18 @@ export const MainLayout = () => {
             height: '64px',
           }}
         >
-          {/* Organization Info with Switcher for Platform Admins */}
+          {/* Toggle Button and Organization Info */}
           <div className="flex items-center gap-3">
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={toggleCollapsed}
+              style={{
+                fontSize: '18px',
+                width: 40,
+                height: 40,
+              }}
+            />
             {canSwitch ? (
               // Platform Admin: Show organization switcher
               <Space size="middle">

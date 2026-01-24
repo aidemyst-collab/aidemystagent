@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Layout, Button, Input, message, Modal, Form, InputNumber, Tooltip } from 'antd';
-import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined } from '@ant-design/icons';
+import { SaveOutlined, RocketOutlined, UndoOutlined, RedoOutlined, EditOutlined, LoadingOutlined, SettingOutlined, CloseOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AgentCanvas } from '../components/AgentBuilder/AgentCanvas';
 import { NodeLibrary } from '../components/AgentBuilder/NodeLibrary';
@@ -25,6 +25,7 @@ export const WorkflowBuilder = () => {
   const [createModalVisible, setCreateModalVisible] = useState(!id); // Hide modal if editing
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
+  const [propertyPanelVisible, setPropertyPanelVisible] = useState(true);
   const [form] = Form.useForm();
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -303,27 +304,94 @@ export const WorkflowBuilder = () => {
           </Button>
         </div>
       </Header>
-      <Layout>
+      <Layout style={{ position: 'relative' }}>
         <Sider width={250} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
           <NodeLibrary />
         </Sider>
-        <Content>
+        <Content style={{ position: 'relative' }}>
           <AgentCanvas
             initialNodes={nodes as any}
             initialEdges={edges as any}
             onNodesChange={handleNodesChange as any}
             onEdgesChange={handleEdgesChange as any}
-            onNodeSelect={setSelectedNode as any}
+            onNodeSelect={(node: WorkflowNode | null) => {
+              setSelectedNode(node);
+              if (node) {
+                setPropertyPanelVisible(true);
+              }
+            }}
           />
+          {/* Property Panel Toggle Button */}
+          {!propertyPanelVisible && (
+            <Tooltip title="Open Properties Panel" placement="left">
+              <Button
+                type="primary"
+                icon={<SettingOutlined />}
+                onClick={() => setPropertyPanelVisible(true)}
+                style={{
+                  position: 'absolute',
+                  right: 16,
+                  top: 16,
+                  zIndex: 10,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
+              />
+            </Tooltip>
+          )}
         </Content>
-        <Sider width={300} theme="light" style={{ borderLeft: '1px solid #f0f0f0' }}>
-          <PropertyPanel
-            selectedNode={selectedNode}
-            onUpdate={handleNodeUpdate}
-            allNodes={nodes}
-            allEdges={edges}
-          />
-        </Sider>
+        {/* Sticky Property Panel */}
+        <div
+          style={{
+            width: propertyPanelVisible ? 320 : 0,
+            minWidth: propertyPanelVisible ? 320 : 0,
+            maxWidth: propertyPanelVisible ? 320 : 0,
+            transition: 'all 0.3s ease',
+            overflow: 'hidden',
+            borderLeft: propertyPanelVisible ? '1px solid #f0f0f0' : 'none',
+            background: '#fff',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              position: 'sticky',
+              top: 0,
+              height: '100%',
+              overflowY: 'auto',
+            }}
+          >
+            {/* Panel Header with Close Button */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '12px 16px',
+                borderBottom: '1px solid #f0f0f0',
+                background: '#fafafa',
+              }}
+            >
+              <span style={{ fontWeight: 600, fontSize: 14 }}>
+                {selectedNode ? `${selectedNode.data?.label || selectedNode.type} Properties` : 'Properties'}
+              </span>
+              <Tooltip title="Close Panel">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloseOutlined />}
+                  onClick={() => setPropertyPanelVisible(false)}
+                  style={{ color: '#999' }}
+                />
+              </Tooltip>
+            </div>
+            <PropertyPanel
+              selectedNode={selectedNode}
+              onUpdate={handleNodeUpdate}
+              allNodes={nodes}
+              allEdges={edges}
+            />
+          </div>
+        </div>
       </Layout>
 
       {/* Create Workflow Modal */}
