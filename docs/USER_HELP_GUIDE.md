@@ -233,14 +233,42 @@ AgentStudio provides 17 node types for building workflows:
 
 ---
 
-#### Subgraph Node
-**Purpose**: Embed nested workflows
+#### Execute Workflow Node
+**Purpose**: Call and execute another workflow for modular composition
 
 **Configuration**:
-- **Agent ID**: Select an existing agent to embed
-- **Input Mapping**: Map parent data to subgraph inputs
+- **Workflow**: Select an existing workflow to execute
+- **Execution Mode**:
+  - *Sync* - Wait for completion before continuing
+  - *Async* - Run in background (fire and forget)
+  - *Async with Callback* - Run async but track execution ID
+- **Timeout**: Maximum wait time for sync execution (default: 30 seconds)
+- **Input Mapping**: Map parent workflow fields to child workflow inputs
+- **Output Mapping**: Map child workflow outputs back to parent state
+- **Error Handling**:
+  - *Stop* - Stop parent workflow on error
+  - *Continue* - Continue with error in state
+  - *Fallback* - Use a fallback value
+- **Advanced Options**:
+  - Pass full parent state to child
+  - Inherit parent credentials
 
-**Example Use**: Reuse common workflows, create modular agents
+**Example Use**:
+- Build modular support systems (route to billing, tech support, or FAQ workflows)
+- Create reusable processing pipelines
+- Implement multi-agent collaboration patterns
+
+**Workflow Example**:
+```
+Main Support Workflow
+├── INPUT
+├── LLM_AGENT (Intent Classification)
+├── DECISION (Route by intent)
+│   ├── billing → EXECUTE_WORKFLOW (Billing Handler)
+│   ├── technical → EXECUTE_WORKFLOW (Tech Support)
+│   └── general → EXECUTE_WORKFLOW (FAQ Handler)
+└── OUTPUT
+```
 
 ---
 
@@ -834,6 +862,7 @@ If you need additional assistance:
 | RAG_RETRIEVER | LLM_AGENT |
 | DECISION | Any node (via conditions) |
 | TOOL | LLM_AGENT, OUTPUT |
+| EXECUTE_WORKFLOW | Any node |
 | OUTPUT | (End node) |
 | VOICE_INPUT | AUDIO_TO_TEXT, LLM_AGENT |
 | VOICE_OUTPUT | (End node) |
