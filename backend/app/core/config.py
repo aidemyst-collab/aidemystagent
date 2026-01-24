@@ -39,7 +39,13 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str = ""
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"]
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "https://agentstudio365.com",
+        "https://agentstudio-d4f3fbfnc0ejhghq.z02.azurefd.net"
+    ]
 
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
