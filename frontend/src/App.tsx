@@ -37,8 +37,15 @@ function App() {
       <ConfigProvider
         theme={{
           token: {
-            colorPrimary: '#1890ff',
-            borderRadius: 6,
+            colorPrimary: '#6366f1',
+            colorInfo: '#6366f1',
+            borderRadius: 8,
+            fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          },
+          components: {
+            Button: {
+              primaryShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+            },
           },
         }}
       >
