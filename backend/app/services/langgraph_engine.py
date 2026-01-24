@@ -296,7 +296,7 @@ class LangGraphEngine:
         # Create graph
         workflow = StateGraph(AgentState)
 
-        # Add nodes from config - only main flow nodes (INPUT, LLM_AGENT, OUTPUT, DECISION, SUBGRAPH)
+        # Add nodes from config - only main flow nodes (INPUT, LLM_AGENT, OUTPUT, DECISION, EXECUTE_WORKFLOW)
         nodes = agent_config.get("nodes", [])
         edges = agent_config.get("edges", [])
 
@@ -320,8 +320,6 @@ class LangGraphEngine:
                 workflow.add_node(node_id, self._handle_decision_node)
             elif node_type == "OUTPUT":
                 workflow.add_node(node_id, self._handle_output_node)
-            elif node_type == "SUBGRAPH":
-                workflow.add_node(node_id, self._handle_subgraph_node)
             elif node_type == "EXECUTE_WORKFLOW":
                 workflow.add_node(node_id, self._handle_execute_workflow_node)
             elif node_type == "FILE_READER":
@@ -1436,11 +1434,6 @@ class LangGraphEngine:
             state["final_output"] = f"Output formatting error: {str(e)}"
 
         state["execution_path"].append("OUTPUT")
-        return state
-
-    def _handle_subgraph_node(self, state: AgentState) -> AgentState:
-        """Handle SUBGRAPH node - nested workflow."""
-        state["execution_path"].append("SUBGRAPH")
         return state
 
     async def _handle_execute_workflow_node(self, state: AgentState) -> AgentState:

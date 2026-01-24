@@ -5,7 +5,6 @@ export { RAGRetrieverNode } from './RAGRetrieverNode';
 export { DecisionNode } from './DecisionNode';
 export { ToolNode } from './ToolNode';
 export { OutputNode } from './OutputNode';
-export { SubgraphNode } from './SubgraphNode';
 export { ExecuteWorkflowNode } from './ExecuteWorkflowNode';
 export { AuxiliaryNode } from './AuxiliaryNode';
 export { FileReaderNode } from './FileReaderNode';
@@ -26,7 +25,6 @@ export const nodeTypes = {
   DECISION: 'DecisionNode',
   TOOL: 'ToolNode',
   OUTPUT: 'OutputNode',
-  SUBGRAPH: 'SubgraphNode',
   EXECUTE_WORKFLOW: 'ExecuteWorkflowNode',
   FILE_READER: 'FileReaderNode',
   STRUCTURED_OUTPUT_PARSER: 'StructuredOutputParserNode',

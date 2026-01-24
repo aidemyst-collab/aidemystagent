@@ -6,7 +6,6 @@ import {
   BranchesOutlined,
   ToolOutlined,
   ExportOutlined,
-  ApartmentOutlined,
   PlayCircleOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
@@ -85,13 +84,6 @@ const nodeDefinitions: NodeDefinition[] = [
     icon: <PlayCircleOutlined />,
     color: '#8B5CF6',
     description: 'Call and execute another workflow',
-  },
-  {
-    type: 'SUBGRAPH',
-    label: 'Subgraph',
-    icon: <ApartmentOutlined />,
-    color: '#eb2f96',
-    description: 'Nested agent workflow (legacy)',
   },
   {
     type: 'FILE_READER',

@@ -7,7 +7,7 @@ export type NodeType =
   | 'DECISION'
   | 'TOOL'
   | 'OUTPUT'
-  | 'SUBGRAPH';
+  | 'EXECUTE_WORKFLOW';
 
 export interface AgentNodeData extends Record<string, unknown> {
   label: string;

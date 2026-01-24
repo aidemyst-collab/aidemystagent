@@ -1369,17 +1369,6 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
           </>
         )}
 
-        {selectedNode.data.type === 'SUBGRAPH' && (
-          <>
-            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-              Reference another workflow as a subgraph
-            </Typography.Text>
-            <Form.Item name={['config', 'workflowId']} label="Workflow ID">
-              <Input placeholder="Enter workflow ID to embed" />
-            </Form.Item>
-          </>
-        )}
-
         {selectedNode.data.type === 'EXECUTE_WORKFLOW' && (
           <>
             <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
