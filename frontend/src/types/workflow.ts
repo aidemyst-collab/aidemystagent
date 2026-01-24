@@ -11,6 +11,7 @@ export type NodeType =
   | 'TOOL'
   | 'OUTPUT'
   | 'SUBGRAPH'
+  | 'EXECUTE_WORKFLOW'
   | 'FILE_READER'
   | 'STRUCTURED_OUTPUT_PARSER'
   | 'AUDIO_TO_TEXT'
@@ -135,6 +136,38 @@ export interface OutputNodeConfig {
 
 export interface SubgraphNodeConfig {
   workflowId: string; // Reference to another workflow
+}
+
+// Input/Output mapping for Execute Workflow node
+export interface WorkflowMapping {
+  id: string;
+  sourceField: string;
+  targetField: string;
+  transform?: string;
+}
+
+export interface ExecuteWorkflowNodeConfig {
+  // Workflow selection
+  workflowId: string | null;
+  workflowName?: string;
+
+  // Execution settings
+  executionMode: 'sync' | 'async' | 'async_callback';
+  timeout: number; // milliseconds
+
+  // Input mapping - map parent state to child workflow inputs
+  inputMapping: WorkflowMapping[];
+
+  // Output mapping - map child workflow outputs to parent state
+  outputMapping: WorkflowMapping[];
+
+  // Error handling
+  onError: 'stop' | 'continue' | 'fallback';
+  fallbackValue?: any;
+
+  // Advanced options
+  passFullState: boolean;
+  inheritCredentials: boolean;
 }
 
 export interface FileReaderNodeConfig {
@@ -351,6 +384,7 @@ export type NodeConfig =
   | ToolNodeConfig
   | OutputNodeConfig
   | SubgraphNodeConfig
+  | ExecuteWorkflowNodeConfig
   | FileReaderNodeConfig
   | AudioToTextNodeConfig
   | TextToAudioNodeConfig
@@ -431,4 +465,8 @@ export function isOutputNode(node: WorkflowNode): node is WorkflowNode & { data:
 
 export function isSubgraphNode(node: WorkflowNode): node is WorkflowNode & { data: { config: SubgraphNodeConfig } } {
   return node.data.type === 'SUBGRAPH';
+}
+
+export function isExecuteWorkflowNode(node: WorkflowNode): node is WorkflowNode & { data: { config: ExecuteWorkflowNodeConfig } } {
+  return node.data.type === 'EXECUTE_WORKFLOW';
 }

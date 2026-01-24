@@ -322,6 +322,8 @@ class LangGraphEngine:
                 workflow.add_node(node_id, self._handle_output_node)
             elif node_type == "SUBGRAPH":
                 workflow.add_node(node_id, self._handle_subgraph_node)
+            elif node_type == "EXECUTE_WORKFLOW":
+                workflow.add_node(node_id, self._handle_execute_workflow_node)
             elif node_type == "FILE_READER":
                 workflow.add_node(node_id, self._handle_file_reader_node)
             elif node_type == "AUDIO_TO_TEXT":
@@ -1440,6 +1442,343 @@ class LangGraphEngine:
         """Handle SUBGRAPH node - nested workflow."""
         state["execution_path"].append("SUBGRAPH")
         return state
+
+    async def _handle_execute_workflow_node(self, state: AgentState) -> AgentState:
+        """
+        Handle EXECUTE_WORKFLOW node - call and execute another workflow.
+        Maps data between parent and child workflows.
+        """
+        import asyncio
+        from uuid import UUID as UUID_type
+        from sqlalchemy import select
+        from app.models.agent import Agent
+
+        start_time = datetime.utcnow()
+        node_id = state["current_node"]
+        agent_config = state["agent_config"]
+
+        # Find the EXECUTE_WORKFLOW node config
+        workflow_config = None
+        node_label = "Execute Workflow"
+        for node in agent_config.get("nodes", []):
+            if node["id"] == node_id and node["data"]["type"] == "EXECUTE_WORKFLOW":
+                workflow_config = node["data"].get("config", {})
+                node_label = node["data"].get("label", "Execute Workflow")
+                break
+
+        if not workflow_config:
+            raise ValueError(f"EXECUTE_WORKFLOW node {node_id} not found in config")
+
+        # Extract configuration
+        child_workflow_id = workflow_config.get("workflowId")
+        execution_mode = workflow_config.get("executionMode", "sync")
+        timeout = workflow_config.get("timeout", 30000)  # milliseconds
+        input_mapping = workflow_config.get("inputMapping", [])
+        output_mapping = workflow_config.get("outputMapping", [])
+        on_error = workflow_config.get("onError", "stop")
+        fallback_value = workflow_config.get("fallbackValue")
+        pass_full_state = workflow_config.get("passFullState", False)
+        inherit_credentials = workflow_config.get("inheritCredentials", True)
+
+        if not child_workflow_id:
+            raise ValueError("No workflow selected for Execute Workflow node")
+
+        # Build child workflow input
+        node_outputs = state.get("node_outputs", {})
+
+        if pass_full_state:
+            child_input = {
+                "user_query": state.get("user_query", ""),
+                "messages": state.get("messages", []),
+                "node_outputs": node_outputs,
+            }
+        else:
+            child_input = {}
+            for mapping in input_mapping:
+                source_field = mapping.get("sourceField", "")
+                target_field = mapping.get("targetField", "")
+
+                # Get value from parent state using dot notation
+                source_value = self._get_nested_value(node_outputs, source_field)
+                if source_value is None:
+                    # Try getting from state directly
+                    source_value = self._get_nested_value(state, source_field)
+
+                # Apply transform if specified
+                transform = mapping.get("transform")
+                if transform and source_value is not None:
+                    source_value = self._apply_transform(source_value, transform)
+
+                if source_value is not None:
+                    self._set_nested_value(child_input, target_field, source_value)
+
+        # Capture input snapshot
+        input_snapshot = {
+            "workflow_id": child_workflow_id,
+            "execution_mode": execution_mode,
+            "input_mapping_count": len(input_mapping),
+            "child_input": child_input,
+        }
+        state["node_inputs"][node_id] = input_snapshot
+
+        try:
+            # Fetch child workflow config from database
+            child_workflow_result = await self.db.execute(
+                select(Agent).where(
+                    Agent.id == UUID_type(child_workflow_id),
+                    Agent.deleted_at.is_(None),
+                )
+            )
+            child_workflow = child_workflow_result.scalar_one_or_none()
+
+            if not child_workflow:
+                raise ValueError(f"Child workflow {child_workflow_id} not found")
+
+            child_config = child_workflow.config
+
+            # Execute child workflow
+            if execution_mode == "sync":
+                # Create a new engine instance for the child workflow
+                child_engine = LangGraphEngine(
+                    db=self.db,
+                    pgvector_db=self.pgvector_db,
+                    redis_client=self.redis_client
+                )
+
+                # Execute with timeout
+                try:
+                    child_result = await asyncio.wait_for(
+                        child_engine.execute_agent(
+                            agent_config=child_config,
+                            user_input=child_input.get("input", child_input.get("user_query", "")),
+                            input_mode="json" if isinstance(child_input, dict) else "chat",
+                            session_id=state.get("session_id"),
+                            organization_id=state.get("organization_id"),
+                            workflow_id=UUID_type(child_workflow_id),
+                        ),
+                        timeout=timeout / 1000  # Convert to seconds
+                    )
+                except asyncio.TimeoutError:
+                    raise TimeoutError(f"Child workflow execution timed out after {timeout}ms")
+
+            elif execution_mode == "async":
+                # Fire and forget - create task but don't wait
+                asyncio.create_task(
+                    self._execute_workflow_async(
+                        child_workflow_id,
+                        child_config,
+                        child_input,
+                        state.get("session_id"),
+                        state.get("organization_id"),
+                    )
+                )
+                child_result = {
+                    "status": "started",
+                    "workflow_id": child_workflow_id,
+                    "output": None,
+                }
+
+            elif execution_mode == "async_callback":
+                # Store execution for later retrieval
+                execution_id = f"exec_{child_workflow_id}_{datetime.utcnow().timestamp()}"
+                asyncio.create_task(
+                    self._execute_workflow_with_callback(
+                        execution_id,
+                        child_workflow_id,
+                        child_config,
+                        child_input,
+                        state.get("session_id"),
+                        state.get("organization_id"),
+                    )
+                )
+                child_result = {
+                    "execution_id": execution_id,
+                    "status": "running",
+                    "output": None,
+                }
+            else:
+                child_result = {"output": None, "error": f"Unknown execution mode: {execution_mode}"}
+
+            # Map outputs back to parent state
+            result_data = {}
+            child_output = child_result.get("output") or child_result
+
+            for mapping in output_mapping:
+                source_field = mapping.get("sourceField", "")
+                target_field = mapping.get("targetField", "")
+
+                source_value = self._get_nested_value(child_output, source_field)
+                if source_value is None and isinstance(child_output, dict):
+                    source_value = child_output.get(source_field)
+
+                # Apply transform if specified
+                transform = mapping.get("transform")
+                if transform and source_value is not None:
+                    source_value = self._apply_transform(source_value, transform)
+
+                if target_field:
+                    self._set_nested_value(result_data, target_field, source_value)
+
+            # Store the full result
+            result_data["_raw_result"] = child_result
+            result_data["_workflow_id"] = child_workflow_id
+            result_data["_execution_mode"] = execution_mode
+
+            # Update node outputs
+            state["node_outputs"][node_id] = result_data
+
+            # Update execution trace
+            end_time = datetime.utcnow()
+            execution_time_ms = int((end_time - start_time).total_seconds() * 1000)
+            state["execution_trace"].append({
+                "node_id": node_id,
+                "node_type": "EXECUTE_WORKFLOW",
+                "node_label": node_label,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "execution_time_ms": execution_time_ms,
+                "child_workflow_id": child_workflow_id,
+                "execution_mode": execution_mode,
+                "output_keys": list(result_data.keys()),
+            })
+
+        except Exception as e:
+            error_message = str(e)
+
+            if on_error == "stop":
+                raise
+            elif on_error == "continue":
+                state["node_outputs"][node_id] = {
+                    "error": error_message,
+                    "workflow_id": child_workflow_id,
+                }
+            else:  # fallback
+                fallback = fallback_value or {}
+                if isinstance(fallback, str):
+                    try:
+                        import json
+                        fallback = json.loads(fallback)
+                    except:
+                        fallback = {"value": fallback}
+                state["node_outputs"][node_id] = fallback
+
+            # Log error in execution trace
+            end_time = datetime.utcnow()
+            execution_time_ms = int((end_time - start_time).total_seconds() * 1000)
+            state["execution_trace"].append({
+                "node_id": node_id,
+                "node_type": "EXECUTE_WORKFLOW",
+                "node_label": node_label,
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "execution_time_ms": execution_time_ms,
+                "error": error_message,
+                "on_error_action": on_error,
+            })
+
+        state["execution_path"].append("EXECUTE_WORKFLOW")
+        return state
+
+    def _get_nested_value(self, data: dict, path: str):
+        """Get a nested value from a dictionary using dot notation."""
+        if not path or not data:
+            return None
+        keys = path.split(".")
+        value = data
+        for key in keys:
+            if isinstance(value, dict):
+                value = value.get(key)
+            else:
+                return None
+        return value
+
+    def _set_nested_value(self, data: dict, path: str, value):
+        """Set a nested value in a dictionary using dot notation."""
+        if not path:
+            return
+        keys = path.split(".")
+        for key in keys[:-1]:
+            if key not in data:
+                data[key] = {}
+            data = data[key]
+        data[keys[-1]] = value
+
+    def _apply_transform(self, value, transform: str):
+        """Apply a simple transform to a value."""
+        if not transform:
+            return value
+        transform = transform.strip()
+
+        # Simple transforms
+        if transform == "trim()" and isinstance(value, str):
+            return value.strip()
+        if transform == "lower()" and isinstance(value, str):
+            return value.lower()
+        if transform == "upper()" and isinstance(value, str):
+            return value.upper()
+
+        # JSONPath-like (basic)
+        if transform.startswith("$."):
+            path = transform[2:]
+            return self._get_nested_value(value, path.replace("[", ".").replace("]", ""))
+
+        return value
+
+    async def _execute_workflow_async(
+        self, workflow_id: str, config: dict, input_data: dict,
+        session_id: str, organization_id
+    ):
+        """Execute a workflow asynchronously (fire and forget)."""
+        try:
+            child_engine = LangGraphEngine(
+                db=self.db,
+                pgvector_db=self.pgvector_db,
+                redis_client=self.redis_client
+            )
+            await child_engine.execute_agent(
+                agent_config=config,
+                user_input=input_data.get("input", ""),
+                input_mode="json",
+                session_id=session_id,
+                organization_id=organization_id,
+            )
+        except Exception as e:
+            print(f"Async workflow execution failed: {e}")
+
+    async def _execute_workflow_with_callback(
+        self, execution_id: str, workflow_id: str, config: dict,
+        input_data: dict, session_id: str, organization_id
+    ):
+        """Execute a workflow and store the result for later retrieval."""
+        try:
+            child_engine = LangGraphEngine(
+                db=self.db,
+                pgvector_db=self.pgvector_db,
+                redis_client=self.redis_client
+            )
+            result = await child_engine.execute_agent(
+                agent_config=config,
+                user_input=input_data.get("input", ""),
+                input_mode="json",
+                session_id=session_id,
+                organization_id=organization_id,
+            )
+            # Store result in Redis for later retrieval
+            if self.redis_client:
+                import json
+                await self.redis_client.setex(
+                    f"workflow_execution:{execution_id}",
+                    3600,  # 1 hour TTL
+                    json.dumps({"status": "completed", "result": result})
+                )
+        except Exception as e:
+            if self.redis_client:
+                import json
+                await self.redis_client.setex(
+                    f"workflow_execution:{execution_id}",
+                    3600,
+                    json.dumps({"status": "failed", "error": str(e)})
+                )
 
     async def _handle_file_reader_node(self, state: AgentState) -> AgentState:
         """Handle FILE_READER node - read files from disk"""

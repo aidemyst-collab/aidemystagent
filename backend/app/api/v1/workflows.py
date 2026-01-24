@@ -87,6 +87,63 @@ async def list_workflows(
     )
 
 
+@router.get("/list", response_model=dict)
+async def list_workflows_for_selector(
+    exclude_id: str = None,
+    search: str = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
+    _: None = Depends(require_permission("agents:read")),
+):
+    """
+    Get list of workflows for the Execute Workflow node selector.
+    Returns minimal data needed for selection dropdown.
+    """
+    from sqlalchemy import or_
+
+    # Build base query
+    query = select(Agent).where(
+        Agent.organization_id == effective_org_id,
+        Agent.deleted_at.is_(None),
+    )
+
+    # Exclude specific workflow (to prevent recursion)
+    if exclude_id:
+        try:
+            exclude_uuid = UUID(exclude_id)
+            query = query.where(Agent.id != exclude_uuid)
+        except (ValueError, TypeError):
+            pass  # Invalid UUID, skip exclusion
+
+    # Search filter
+    if search:
+        query = query.where(
+            or_(
+                Agent.name.ilike(f"%{search}%"),
+                Agent.description.ilike(f"%{search}%"),
+            )
+        )
+
+    # Order by most recently updated
+    query = query.order_by(Agent.updated_at.desc()).limit(100)
+
+    result = await db.execute(query)
+    workflows = result.scalars().all()
+
+    return {
+        "workflows": [
+            {
+                "id": str(workflow.id),
+                "name": workflow.name,
+                "description": workflow.description or "",
+                "status": workflow.status.value if workflow.status else "draft",
+            }
+            for workflow in workflows
+        ]
+    }
+
+
 @router.get("/{workflow_id}", response_model=WorkflowResponse)
 async def get_workflow(
     workflow_id: UUID,

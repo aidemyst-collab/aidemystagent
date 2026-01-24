@@ -45,6 +45,10 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
   const [loadingExternalCollections, setLoadingExternalCollections] = useState(false);
   const [externalConnectionStatus, setExternalConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+  // Execute Workflow state
+  const [workflows, setWorkflows] = useState<{ id: string; name: string; description: string; status: string }[]>([]);
+  const [loadingWorkflows, setLoadingWorkflows] = useState(false);
+
   // Helper function to get upstream nodes
   const getUpstreamNodes = (currentNode: WorkflowNode): WorkflowNode[] => {
     // Find all edges that point to the current node
@@ -72,6 +76,14 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
         const configuredToolType = selectedNode.data.config?.toolType || 'built-in';
         setSelectedToolType(configuredToolType);
         fetchTools(configuredToolType);
+      }
+
+      // If EXECUTE_WORKFLOW node is selected, fetch available workflows
+      if (selectedNode.data.type === 'EXECUTE_WORKFLOW') {
+        // Get the current workflow ID from URL or context to exclude it
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentWorkflowId = urlParams.get('id') || undefined;
+        fetchWorkflows(currentWorkflowId);
       }
     } else {
       form.resetFields();
@@ -109,6 +121,29 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
       setCollections(data.collections || []);
     } catch (error) {
       console.error('Error fetching collections:', error);
+    }
+  };
+
+  const fetchWorkflows = async (excludeId?: string) => {
+    setLoadingWorkflows(true);
+    try {
+      const params = new URLSearchParams();
+      if (excludeId) params.append('exclude_id', excludeId);
+      const response = await apiClient.get<{ workflows: { id: string; name: string; description: string; status: string }[] }>(
+        `/workflows/list?${params.toString()}`
+      );
+      setWorkflows(response.workflows || []);
+    } catch (error) {
+      console.error('Error fetching workflows:', error);
+      // Fallback: try to get regular workflow list
+      try {
+        const response = await apiClient.get<{ workflows: { id: string; name: string; description: string; status: string }[] }>('/workflows');
+        setWorkflows(response.workflows || []);
+      } catch {
+        setWorkflows([]);
+      }
+    } finally {
+      setLoadingWorkflows(false);
     }
   };
 
@@ -1342,6 +1377,313 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
             <Form.Item name={['config', 'workflowId']} label="Workflow ID">
               <Input placeholder="Enter workflow ID to embed" />
             </Form.Item>
+          </>
+        )}
+
+        {selectedNode.data.type === 'EXECUTE_WORKFLOW' && (
+          <>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+              Call and execute another workflow. Map data between parent and child workflows.
+            </Typography.Text>
+
+            <Card size="small" title="Workflow Selection" style={{ marginBottom: 16 }}>
+              <Form.Item
+                name={['config', 'workflowId']}
+                label="Workflow"
+                rules={[{ required: true, message: 'Please select a workflow to execute' }]}
+              >
+                <Select
+                  placeholder={loadingWorkflows ? 'Loading workflows...' : 'Select a workflow'}
+                  loading={loadingWorkflows}
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={workflows.map(wf => ({
+                    label: `${wf.name}${wf.status === 'deployed' ? ' (deployed)' : ''}`,
+                    value: wf.id,
+                  }))}
+                  onChange={(value) => {
+                    // Set the workflow name for display
+                    const selectedWf = workflows.find(wf => wf.id === value);
+                    if (selectedWf) {
+                      form.setFieldValue(['config', 'workflowName'], selectedWf.name);
+                    }
+                  }}
+                  notFoundContent={
+                    loadingWorkflows ? (
+                      <div style={{ textAlign: 'center', padding: 8 }}>
+                        <Spin size="small" /> Loading...
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: 8 }}>
+                        No workflows found.
+                        <br />
+                        <a href="/workflows" target="_blank" rel="noopener noreferrer">
+                          Create one in Workflows
+                        </a>
+                      </div>
+                    )
+                  }
+                />
+              </Form.Item>
+              <Form.Item name={['config', 'workflowName']} hidden>
+                <Input />
+              </Form.Item>
+
+              <Button
+                type="link"
+                icon={<ReloadOutlined />}
+                onClick={() => {
+                  const urlParams = new URLSearchParams(window.location.search);
+                  const currentWorkflowId = urlParams.get('id') || undefined;
+                  fetchWorkflows(currentWorkflowId);
+                }}
+                size="small"
+              >
+                Refresh list
+              </Button>
+            </Card>
+
+            <Card size="small" title="Execution Settings" style={{ marginBottom: 16 }}>
+              <Form.Item
+                name={['config', 'executionMode']}
+                label="Execution Mode"
+                initialValue="sync"
+                tooltip="How to execute the child workflow"
+              >
+                <Select
+                  options={[
+                    { label: 'Wait for completion (Sync)', value: 'sync' },
+                    { label: 'Run in background (Async)', value: 'async' },
+                    { label: 'Async with callback', value: 'async_callback' },
+                  ]}
+                />
+              </Form.Item>
+
+              <Form.Item
+                name={['config', 'timeout']}
+                label="Timeout (ms)"
+                initialValue={30000}
+                tooltip="Maximum time to wait for workflow completion (sync mode)"
+              >
+                <InputNumber
+                  min={1000}
+                  max={300000}
+                  step={1000}
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Card>
+
+            <Card size="small" title="Input Mapping" style={{ marginBottom: 16 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+                Map data from the current workflow to the child workflow's inputs.
+              </Typography.Text>
+
+              <Form.List name={['config', 'inputMapping']}>
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Card key={key} size="small" className="mb-2" style={{ background: '#f9f9f9' }}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'id']}
+                          hidden
+                          initialValue={`input-${Date.now()}-${key}`}
+                        >
+                          <Input />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'sourceField']}
+                          label="Parent Field"
+                          rules={[{ required: true, message: 'Source field is required' }]}
+                          tooltip="Field from the current workflow state"
+                        >
+                          <Input placeholder="e.g., user_query, context.data" />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'targetField']}
+                          label="Child Input"
+                          rules={[{ required: true, message: 'Target field is required' }]}
+                          tooltip="Field name in child workflow's input"
+                        >
+                          <Input placeholder="e.g., input, query, data" />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'transform']}
+                          label="Transform (Optional)"
+                          tooltip="JSONPath expression or simple transformation"
+                        >
+                          <Input placeholder="e.g., $.items[0], trim()" />
+                        </Form.Item>
+
+                        <Button
+                          type="link"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(name)}
+                          size="small"
+                        >
+                          Remove
+                        </Button>
+                      </Card>
+                    ))}
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ id: `input-${Date.now()}` })}
+                      block
+                      icon={<PlusOutlined />}
+                    >
+                      Add Input Mapping
+                    </Button>
+                  </>
+                )}
+              </Form.List>
+            </Card>
+
+            <Card size="small" title="Output Mapping" style={{ marginBottom: 16 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 8 }}>
+                Map data from the child workflow's outputs back to the parent workflow.
+              </Typography.Text>
+
+              <Form.List name={['config', 'outputMapping']}>
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <Card key={key} size="small" className="mb-2" style={{ background: '#f9f9f9' }}>
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'id']}
+                          hidden
+                          initialValue={`output-${Date.now()}-${key}`}
+                        >
+                          <Input />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'sourceField']}
+                          label="Child Output"
+                          rules={[{ required: true, message: 'Source field is required' }]}
+                          tooltip="Field from child workflow's output"
+                        >
+                          <Input placeholder="e.g., result, response, data" />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'targetField']}
+                          label="Parent Field"
+                          rules={[{ required: true, message: 'Target field is required' }]}
+                          tooltip="Field name to set in parent workflow"
+                        >
+                          <Input placeholder="e.g., workflow_result, output" />
+                        </Form.Item>
+
+                        <Form.Item
+                          {...restField}
+                          name={[name, 'transform']}
+                          label="Transform (Optional)"
+                          tooltip="JSONPath expression or simple transformation"
+                        >
+                          <Input placeholder="e.g., $.items[0], trim()" />
+                        </Form.Item>
+
+                        <Button
+                          type="link"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => remove(name)}
+                          size="small"
+                        >
+                          Remove
+                        </Button>
+                      </Card>
+                    ))}
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ id: `output-${Date.now()}` })}
+                      block
+                      icon={<PlusOutlined />}
+                    >
+                      Add Output Mapping
+                    </Button>
+                  </>
+                )}
+              </Form.List>
+            </Card>
+
+            <Card size="small" title="Error Handling" style={{ marginBottom: 16 }}>
+              <Form.Item
+                name={['config', 'onError']}
+                label="On Error"
+                initialValue="stop"
+                tooltip="What to do if the child workflow fails"
+              >
+                <Select
+                  options={[
+                    { label: 'Stop parent workflow', value: 'stop' },
+                    { label: 'Continue with error in state', value: 'continue' },
+                    { label: 'Use fallback value', value: 'fallback' },
+                  ]}
+                />
+              </Form.Item>
+
+              <Form.Item noStyle shouldUpdate>
+                {() => {
+                  const onError = form.getFieldValue(['config', 'onError']);
+                  if (onError === 'fallback') {
+                    return (
+                      <Form.Item
+                        name={['config', 'fallbackValue']}
+                        label="Fallback Value"
+                        tooltip="Value to use if child workflow fails (JSON)"
+                      >
+                        <TextArea
+                          rows={3}
+                          placeholder='{"error": "Workflow failed", "result": null}'
+                          style={{ fontFamily: 'monospace', fontSize: 12 }}
+                        />
+                      </Form.Item>
+                    );
+                  }
+                  return null;
+                }}
+              </Form.Item>
+            </Card>
+
+            <Card size="small" title="Advanced Options" style={{ marginBottom: 16 }}>
+              <Form.Item
+                name={['config', 'passFullState']}
+                valuePropName="checked"
+                initialValue={false}
+              >
+                <Checkbox>Pass full parent state (ignores input mapping)</Checkbox>
+              </Form.Item>
+
+              <Form.Item
+                name={['config', 'inheritCredentials']}
+                valuePropName="checked"
+                initialValue={true}
+              >
+                <Checkbox>Inherit parent credentials</Checkbox>
+              </Form.Item>
+            </Card>
+
+            <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8 }}>
+              <strong>Output:</strong> Child workflow results available as{' '}
+              <code style={{ background: '#f0f0f0', padding: '2px 4px', borderRadius: 2 }}>
+                {'{{node_id.result}}'}
+              </code>
+              {' '}or through output mapping.
+            </Typography.Text>
           </>
         )}
 
