@@ -11,7 +11,7 @@ from datetime import datetime
 from app.core.database import get_db
 from app.models.user import User
 from app.models.role import Role, UserRole
-from app.api.deps import get_current_active_user, require_permission, require_org_admin
+from app.api.deps import get_current_active_user, require_permission, require_org_admin, get_effective_organization_id
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -153,6 +153,7 @@ async def build_user_response(db: AsyncSession, user: User) -> UserResponse:
 async def list_users(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
     _: None = Depends(require_permission("users:read")),
     skip: int = 0,
     limit: int = 100,
@@ -160,11 +161,13 @@ async def list_users(
     search: Optional[str] = None,
 ):
     """
-    List all users in the current user's organization.
+    List all users in the effective organization (supports admin "Viewing As" feature).
+    Excludes platform admins from the list.
     """
     query = select(User).where(
-        User.organization_id == current_user.organization_id,
+        User.organization_id == effective_org_id,
         User.deleted_at.is_(None),
+        User.is_platform_admin == False,  # Exclude platform admins
     )
 
     if is_active is not None:
@@ -318,15 +321,16 @@ async def deactivate_user(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
 ):
     """
     Deactivate a user account.
-    Requires org admin permission.
+    Requires org admin permission. Supports "Viewing As" feature.
     """
     result = await db.execute(
         select(User).where(
             User.id == user_id,
-            User.organization_id == current_user.organization_id,
+            User.organization_id == effective_org_id,
             User.deleted_at.is_(None),
         )
     )
@@ -362,15 +366,16 @@ async def activate_user(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
 ):
     """
     Reactivate a user account.
-    Requires org admin permission.
+    Requires org admin permission. Supports "Viewing As" feature.
     """
     result = await db.execute(
         select(User).where(
             User.id == user_id,
-            User.organization_id == current_user.organization_id,
+            User.organization_id == effective_org_id,
             User.deleted_at.is_(None),
         )
     )
@@ -396,15 +401,16 @@ async def unlock_user(
     user_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
 ):
     """
     Unlock a locked user account.
-    Requires org admin permission.
+    Requires org admin permission. Supports "Viewing As" feature.
     """
     result = await db.execute(
         select(User).where(
             User.id == user_id,
-            User.organization_id == current_user.organization_id,
+            User.organization_id == effective_org_id,
             User.deleted_at.is_(None),
         )
     )
@@ -539,16 +545,17 @@ async def assign_role_to_user(
     role_data: UserRoleAssign,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
 ):
     """
     Assign a role to a user.
-    Requires org admin permission.
+    Requires org admin permission. Supports "Viewing As" feature.
     """
-    # Verify user exists and is in same org
+    # Verify user exists and is in effective org
     user_result = await db.execute(
         select(User).where(
             User.id == user_id,
-            User.organization_id == current_user.organization_id,
+            User.organization_id == effective_org_id,
             User.deleted_at.is_(None),
         )
     )
@@ -580,7 +587,7 @@ async def assign_role_to_user(
         select(UserRole).where(
             UserRole.user_id == user_id,
             UserRole.role_id == role_data.role_id,
-            UserRole.organization_id == current_user.organization_id,
+            UserRole.organization_id == effective_org_id,
         )
     )
     if existing.scalar_one_or_none():
@@ -593,7 +600,7 @@ async def assign_role_to_user(
     user_role = UserRole(
         user_id=user_id,
         role_id=role_data.role_id,
-        organization_id=current_user.organization_id,
+        organization_id=effective_org_id,
         assigned_by=current_user.id,
     )
 
@@ -617,16 +624,17 @@ async def remove_role_from_user(
     role_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
 ):
     """
     Remove a role from a user.
-    Requires org admin permission.
+    Requires org admin permission. Supports "Viewing As" feature.
     """
-    # Verify user exists and is in same org
+    # Verify user exists and is in effective org
     user_result = await db.execute(
         select(User).where(
             User.id == user_id,
-            User.organization_id == current_user.organization_id,
+            User.organization_id == effective_org_id,
             User.deleted_at.is_(None),
         )
     )
@@ -643,7 +651,7 @@ async def remove_role_from_user(
         select(UserRole).where(
             UserRole.user_id == user_id,
             UserRole.role_id == role_id,
-            UserRole.organization_id == current_user.organization_id,
+            UserRole.organization_id == effective_org_id,
         )
     )
     user_role = result.scalar_one_or_none()
