@@ -199,7 +199,7 @@ export const AgentCanvas = ({
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
         attributionPosition="bottom-right"
-        deleteKeyCode="Delete"
+        deleteKeyCode={['Delete', 'Backspace']}
         elementsSelectable={true}
         nodesConnectable={true}
         nodesDraggable={true}
