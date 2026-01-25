@@ -71,7 +71,7 @@ export const toolService = {
     if (toolType) {
       params.append('tool_type', toolType);
     }
-    return apiClient.get<ToolListResponse>(`/tools/?${params.toString()}`);
+    return apiClient.get<ToolListResponse>(`/tools?${params.toString()}`);
   },
 
   /**
