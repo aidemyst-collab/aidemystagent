@@ -43,6 +43,76 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
     }
   }, [preSelectedType, form]);
 
+  // Prefill form when editing existing tool
+  useEffect(() => {
+    if (visible && initialData) {
+      // Set tool type
+      setToolType(initialData.type);
+
+      // Set form values
+      const formValues: any = {
+        name: initialData.name,
+        description: initialData.description,
+        tool_type: initialData.type,
+        visibility: initialData.visibility,
+      };
+
+      // Handle custom tool config
+      if (initialData.type === 'custom' && initialData.config) {
+        formValues.language = initialData.config.language;
+        formValues.code = initialData.config.code;
+      }
+
+      // Handle API tool config
+      if (initialData.type === 'api' && initialData.config?.api) {
+        const apiConfig = initialData.config.api;
+        formValues.api_endpoint = apiConfig.endpoint;
+        formValues.api_method = apiConfig.method;
+        formValues.auth_type = apiConfig.auth_type;
+        formValues.auth_token = apiConfig.token;
+        formValues.timeout = apiConfig.timeout;
+        formValues.request_body = apiConfig.body ? JSON.stringify(apiConfig.body, null, 2) : '';
+
+        // Set headers
+        if (apiConfig.headers) {
+          setHeaders(Object.entries(apiConfig.headers).map(([key, value]) => ({ key, value: value as string })));
+        }
+        // Set query params
+        if (apiConfig.query_params) {
+          setQueryParams(Object.entries(apiConfig.query_params).map(([key, value]) => ({ key, value: value as string })));
+        }
+      }
+
+      // Handle MCP tool config
+      if (initialData.type === 'mcp' && initialData.config) {
+        formValues.mcp_type = initialData.config.mcp_type;
+        formValues.resource_uri = initialData.config.resource_uri;
+        formValues.mcp_server_url = initialData.config.mcp_server_url;
+      }
+
+      // Set parameters
+      if (initialData.config?.parameters) {
+        const params = Object.entries(initialData.config.parameters).map(([name, config]: [string, any]) => ({
+          name,
+          type: config.type || 'string',
+          description: config.description || '',
+          required: config.required || false,
+          default: config.default,
+        }));
+        setParameters(params);
+      }
+
+      form.setFieldsValue(formValues);
+    } else if (visible && !initialData) {
+      // Reset form when creating new tool
+      form.resetFields();
+      setParameters([]);
+      setHeaders([]);
+      setQueryParams([]);
+      setToolType(preSelectedType || 'custom');
+    }
+  }, [visible, initialData, form, preSelectedType]);
+
   const handleSubmit = async (values: any) => {
     setLoading(true);
     try {
@@ -95,8 +165,12 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
       };
 
       const { tokens } = useAuthStore.getState();
-      const response = await fetch('/api/v1/tools', {
-        method: 'POST',
+      const isEditing = !!initialData;
+      const url = isEditing ? `/api/v1/tools/${initialData.id}` : '/api/v1/tools';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${tokens?.accessToken}`,
@@ -105,10 +179,10 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create tool');
+        throw new Error(isEditing ? 'Failed to update tool' : 'Failed to create tool');
       }
 
-      message.success('Tool created successfully');
+      message.success(isEditing ? 'Tool updated successfully' : 'Tool created successfully');
       form.resetFields();
       setParameters([]);
       setHeaders([]);
