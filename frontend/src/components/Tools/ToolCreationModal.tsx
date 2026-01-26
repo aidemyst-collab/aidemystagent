@@ -49,6 +49,11 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
       // Set tool type
       setToolType(initialData.type);
 
+      // Reset state arrays first to clear any stale data
+      setParameters([]);
+      setHeaders([]);
+      setQueryParams([]);
+
       // Set form values
       const formValues: any = {
         name: initialData.name,
@@ -74,11 +79,11 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
         formValues.request_body = apiConfig.body ? JSON.stringify(apiConfig.body, null, 2) : '';
 
         // Set headers
-        if (apiConfig.headers) {
+        if (apiConfig.headers && Object.keys(apiConfig.headers).length > 0) {
           setHeaders(Object.entries(apiConfig.headers).map(([key, value]) => ({ key, value: value as string })));
         }
         // Set query params
-        if (apiConfig.query_params) {
+        if (apiConfig.query_params && Object.keys(apiConfig.query_params).length > 0) {
           setQueryParams(Object.entries(apiConfig.query_params).map(([key, value]) => ({ key, value: value as string })));
         }
       }
@@ -91,7 +96,7 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
       }
 
       // Set parameters
-      if (initialData.config?.parameters) {
+      if (initialData.config?.parameters && Object.keys(initialData.config.parameters).length > 0) {
         const params = Object.entries(initialData.config.parameters).map(([name, config]: [string, any]) => ({
           name,
           type: config.type || 'string',
@@ -454,7 +459,7 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
-        initialValues={initialData || { visibility: 'private' }}
+        initialValues={{ visibility: 'private' }}
       >
         <Form.Item
           label="Tool Name"

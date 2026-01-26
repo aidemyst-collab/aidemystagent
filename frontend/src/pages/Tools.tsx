@@ -85,6 +85,7 @@ export const Tools = () => {
 
   const handleEditTool = (tool: CustomTool) => {
     setEditingTool(tool);
+    setSelectedToolType(null); // Clear preSelectedType so edit uses tool's actual type
     setCreateModalVisible(true);
   };
 
