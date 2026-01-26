@@ -22,7 +22,7 @@ class ApiClient {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refresh_token: tokens.refreshToken }),
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
       });
 
       if (!response.ok) {
@@ -31,8 +31,8 @@ class ApiClient {
 
       const data = await response.json();
       updateTokens({
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
       });
     } catch (error) {
       // If refresh fails, clear auth and force re-login

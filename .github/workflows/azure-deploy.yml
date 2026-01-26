@@ -125,6 +125,8 @@ jobs:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ env.BACKEND_APP_NAME }}
           imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:development
+          environmentVariables: |
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
 
       - name: Deploy Frontend to Container Apps
         uses: azure/container-apps-deploy-action@v1
