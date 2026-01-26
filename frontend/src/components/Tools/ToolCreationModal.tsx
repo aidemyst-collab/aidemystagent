@@ -81,11 +81,9 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
           body: values.request_body ? JSON.parse(values.request_body) : undefined,
           timeout: values.timeout || 30,
         };
-      } else if (toolType === 'code') {
-        config.code = {
-          language: values.language,
-          code: values.code,
-        };
+      } else if (toolType === 'custom') {
+        config.language = values.language;
+        config.code = values.code;
       }
 
       const payload = {
