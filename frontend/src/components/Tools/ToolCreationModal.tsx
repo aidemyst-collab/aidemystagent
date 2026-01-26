@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Button, message, Space, Tabs } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useAuthStore } from '../../features/auth/authStore';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -95,11 +96,12 @@ export const ToolCreationModal = ({ visible, onClose, onSuccess, initialData, pr
         visibility: values.visibility || 'private',
       };
 
-      const response = await fetch('/api/v1/tools/', {
+      const { tokens } = useAuthStore.getState();
+      const response = await fetch('/api/v1/tools', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Authorization': `Bearer ${tokens?.accessToken}`,
         },
         body: JSON.stringify(payload),
       });
