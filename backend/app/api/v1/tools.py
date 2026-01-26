@@ -9,6 +9,7 @@ from app.core.database import get_db
 from app.models.tool import Tool
 from app.models.user import User
 from app.services.tools import tool_registry, APIIntegrationTool
+from app.services.code_executor import code_executor
 from app.schemas.tool import (
     ToolCreate,
     ToolUpdate,
@@ -258,11 +259,30 @@ async def test_tool(
     # Execute tool based on type
     try:
         if tool.type == "custom":
-            # TODO: Execute custom code in sandbox
+            # Execute custom code using code executor
+            code = tool.config.get("code", "")
+            language = tool.config.get("language", "python")
+            parameters = tool.config.get("parameters", {})
+
+            if not code:
+                return ToolExecuteResponse(
+                    success=False,
+                    result=None,
+                    error="No code defined for this tool",
+                )
+
+            result = await code_executor.execute(
+                code=code,
+                language=language,
+                input_data=request.input_data,
+                parameters=parameters
+            )
+
             return ToolExecuteResponse(
-                success=True,
-                result={"message": "Custom code execution not yet implemented"},
-                error=None,
+                success=result.success,
+                result=result.result,
+                error=result.error,
+                execution_time=result.execution_time_ms,
             )
         elif tool.type == "api":
             # Execute API call using APIIntegrationTool
