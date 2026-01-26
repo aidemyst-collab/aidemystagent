@@ -10,10 +10,12 @@ interface ToolTesterProps {
   visible: boolean;
   toolName: string;
   toolDescription: string;
+  toolId?: string;
+  toolType?: 'built-in' | 'custom' | 'api' | 'mcp';
   onClose: () => void;
 }
 
-export const ToolTester = ({ visible, toolName, toolDescription, onClose }: ToolTesterProps) => {
+export const ToolTester = ({ visible, toolName, toolDescription, toolId, toolType, onClose }: ToolTesterProps) => {
   const [form] = Form.useForm();
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -93,7 +95,14 @@ export const ToolTester = ({ visible, toolName, toolDescription, onClose }: Tool
       setError(null);
 
       const { tokens } = useAuthStore.getState();
-      const response = await fetch(`/api/v1/tools/built-in/${toolName}/execute`, {
+
+      // Determine the correct endpoint based on tool type
+      const isBuiltIn = !toolType || toolType === 'built-in';
+      const endpoint = isBuiltIn
+        ? `/api/v1/tools/built-in/${toolName}/execute`
+        : `/api/v1/tools/${toolId}/test`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

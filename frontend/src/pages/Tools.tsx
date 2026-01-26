@@ -12,6 +12,8 @@ interface Tool {
   name: string;
   description: string;
   schema: any;
+  id?: string;
+  type?: 'built-in' | 'custom' | 'api' | 'mcp';
 }
 
 export const Tools = () => {
@@ -126,7 +128,7 @@ export const Tools = () => {
                   name={tool.name}
                   description={tool.description}
                   category={category}
-                  onTest={() => handleTest({ name: tool.name, description: tool.description, schema: {} })}
+                  onTest={() => handleTest({ name: tool.name, description: tool.description, schema: {}, id: tool.id, type: tool.type })}
                   onDetails={() => handleDetails({ name: tool.name, description: tool.description, schema: {} })}
                   onEdit={() => handleEditTool(tool)}
                   onDelete={() => handleDeleteTool(tool.id)}
@@ -207,6 +209,8 @@ export const Tools = () => {
           visible={testerVisible}
           toolName={selectedTool.name}
           toolDescription={selectedTool.description}
+          toolId={selectedTool.id}
+          toolType={selectedTool.type}
           onClose={() => {
             setTesterVisible(false);
             setSelectedTool(null);
