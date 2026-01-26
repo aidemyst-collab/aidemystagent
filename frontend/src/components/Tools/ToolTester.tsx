@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Form, Input, Button, Typography, Alert, Spin } from 'antd';
 import { PlayCircleOutlined } from '@ant-design/icons';
+import { useAuthStore } from '../../features/auth/authStore';
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -91,10 +92,12 @@ export const ToolTester = ({ visible, toolName, toolDescription, onClose }: Tool
       setResult(null);
       setError(null);
 
+      const { tokens } = useAuthStore.getState();
       const response = await fetch(`/api/v1/tools/built-in/${toolName}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokens?.accessToken}`,
         },
         body: JSON.stringify({ input_data: values }),
       });
