@@ -6,16 +6,27 @@ import { useAuthStore } from '../../features/auth/authStore';
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
+interface ToolParameter {
+  type: string;
+  description: string;
+  required?: boolean;
+  default?: any;
+}
+
 interface ToolTesterProps {
   visible: boolean;
   toolName: string;
   toolDescription: string;
   toolId?: string;
   toolType?: 'built-in' | 'custom' | 'api' | 'mcp';
+  toolConfig?: {
+    parameters?: Record<string, ToolParameter>;
+    [key: string]: any;
+  };
   onClose: () => void;
 }
 
-export const ToolTester = ({ visible, toolName, toolDescription, toolId, toolType, onClose }: ToolTesterProps) => {
+export const ToolTester = ({ visible, toolName, toolDescription, toolId, toolType, toolConfig, onClose }: ToolTesterProps) => {
   const [form] = Form.useForm();
   const [isExecuting, setIsExecuting] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -125,7 +136,23 @@ export const ToolTester = ({ visible, toolName, toolDescription, toolId, toolTyp
     }
   };
 
-  const parameters = getToolParameters(toolName);
+  // Get parameters - use custom tool config if available, otherwise built-in
+  const getCustomParameters = () => {
+    if (toolConfig?.parameters && Object.keys(toolConfig.parameters).length > 0) {
+      return Object.entries(toolConfig.parameters).map(([name, config]) => ({
+        name,
+        label: name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, ' '),
+        placeholder: config.description || '',
+        required: config.required || false,
+        type: config.type || 'string',
+        multiline: config.type === 'object' || config.type === 'array',
+      }));
+    }
+    return [];
+  };
+
+  const isCustomTool = toolType && toolType !== 'built-in';
+  const parameters = isCustomTool ? getCustomParameters() : getToolParameters(toolName);
 
   return (
     <Modal
