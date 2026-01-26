@@ -127,6 +127,8 @@ jobs:
           imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:development
           environmentVariables: |
             SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            REDIS_URL=${{ secrets.REDIS_URL }}
 
       - name: Deploy Frontend to Container Apps
         uses: azure/container-apps-deploy-action@v1
