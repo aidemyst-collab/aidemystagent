@@ -10,6 +10,7 @@ from app.models.tool import Tool
 from app.models.user import User
 from app.services.tools import tool_registry, APIIntegrationTool
 from app.services.code_executor import code_executor
+from app.services.mcp_service import mcp_service
 from app.schemas.tool import (
     ToolCreate,
     ToolUpdate,
@@ -304,11 +305,41 @@ async def test_tool(
                 error=result.error,
             )
         elif tool.type == "mcp":
-            # TODO: Execute MCP tool
+            # Execute MCP operation using FastMCP client
+            mcp_type = tool.config.get("mcp_type", "tool")
+            resource_uri = tool.config.get("resource_uri", "")
+            server_url = tool.config.get("mcp_server_url", "")
+            auth_token = tool.config.get("auth_token")
+            http_fallback_pattern = tool.config.get("http_fallback_pattern")
+
+            if not server_url:
+                return ToolExecuteResponse(
+                    success=False,
+                    result=None,
+                    error="MCP server URL is required. Configure it in the tool settings.",
+                )
+
+            if not resource_uri:
+                return ToolExecuteResponse(
+                    success=False,
+                    result=None,
+                    error="MCP resource URI (tool/resource name) is required.",
+                )
+
+            result = await mcp_service.execute(
+                mcp_type=mcp_type,
+                resource_uri=resource_uri,
+                server_url=server_url,
+                input_data=request.input_data,
+                auth_token=auth_token,
+                http_fallback_pattern=http_fallback_pattern,
+            )
+
             return ToolExecuteResponse(
-                success=True,
-                result={"message": "MCP execution not yet implemented"},
-                error=None,
+                success=result.success,
+                result=result.result,
+                error=result.error,
+                execution_time=result.execution_time_ms,
             )
         else:
             raise HTTPException(
