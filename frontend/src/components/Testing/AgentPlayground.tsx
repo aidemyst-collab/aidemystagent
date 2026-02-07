@@ -620,124 +620,6 @@ export const AgentPlayground = ({
           )}
         </div>
 
-        {/* Execution Log Panel */}
-        {showExecutionLog && (
-          <div
-            style={{
-              backgroundColor: '#f0f5ff',
-              borderTop: '3px solid #1890ff',
-              padding: '12px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px',
-                padding: '8px 12px',
-                backgroundColor: '#1890ff',
-                borderRadius: '6px',
-                color: 'white',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <CodeOutlined style={{ fontSize: '16px' }} />
-                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Execution Log</span>
-                {lastExecutionError && (
-                  <Tag color="error" style={{ marginLeft: '8px' }}>Error</Tag>
-                )}
-                {!lastExecutionError && lastExecutionTrace.length > 0 && (
-                  <Tag color="success" style={{ marginLeft: '8px' }}>{lastExecutionTrace.length} nodes executed</Tag>
-                )}
-              </div>
-            </div>
-            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '12px' }}>
-                {/* Error Alert */}
-                {lastExecutionError && (
-                  <Alert
-                    message="Execution Error"
-                    description={lastExecutionError}
-                    type="error"
-                    showIcon
-                    style={{ marginBottom: 16 }}
-                  />
-                )}
-
-                {/* Node Execution Trace */}
-                {lastExecutionTrace.length > 0 && (
-                  <div className="space-y-3" style={{ maxHeight: '300px', overflow: 'auto' }}>
-                    {lastExecutionTrace.map((entry, index) => {
-                      const statusDisplay = getStatusDisplay(entry.status);
-                      return (
-                        <Card
-                          key={`${entry.node_id}-${index}`}
-                          size="small"
-                          style={{
-                            borderLeft: `4px solid ${getNodeTypeColor(entry.node_type)}`,
-                            backgroundColor: entry.status === 'error' ? '#fff2f0' : 'white',
-                          }}
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="flex items-center gap-2">
-                              <Tag color={getNodeTypeColor(entry.node_type)}>
-                                {entry.node_type}
-                              </Tag>
-                              <Text strong>{entry.node_label || entry.node_id}</Text>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {entry.duration_ms !== undefined && (
-                                <Tag icon={<ClockCircleOutlined />}>
-                                  {entry.duration_ms}ms
-                                </Tag>
-                              )}
-                              <Tag
-                                icon={statusDisplay.icon}
-                                color={entry.status === 'error' ? 'error' : entry.status === 'success' ? 'success' : 'warning'}
-                              >
-                                {statusDisplay.text}
-                              </Tag>
-                            </div>
-                          </div>
-
-                          {/* Error message for this node */}
-                          {entry.error && (
-                            <Alert
-                              message={entry.error}
-                              type="error"
-                              showIcon
-                              style={{ marginBottom: 8 }}
-                            />
-                          )}
-
-                          {/* Input/Output Data */}
-                          <Collapse ghost size="small">
-                            <Panel header={<Text type="secondary">Input Data</Text>} key="input">
-                              {renderNodeData(entry.input_data)}
-                            </Panel>
-                            <Panel header={<Text type="secondary">Output Data</Text>} key="output">
-                              {renderNodeData(entry.output_data)}
-                            </Panel>
-                          </Collapse>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {lastExecutionTrace.length === 0 && !lastExecutionError && (
-                  <div>
-                    <Text type="secondary">No execution trace available yet.</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      Run a test to see the execution details here.
-                    </Text>
-                  </div>
-                )}
-            </div>
-          </div>
-        )}
-
         <Divider style={{ margin: 0 }} />
 
         {/* Input Area */}
@@ -882,6 +764,124 @@ export const AgentPlayground = ({
             {inputMode === 'audio' && 'Record from microphone or upload audio file for voice input'}
           </Text>
         </div>
+
+        {/* Execution Log Panel - Below Input */}
+        {showExecutionLog && (
+          <div
+            style={{
+              backgroundColor: '#f0f5ff',
+              borderTop: '3px solid #1890ff',
+              padding: '12px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px',
+                padding: '8px 12px',
+                backgroundColor: '#1890ff',
+                borderRadius: '6px',
+                color: 'white',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CodeOutlined style={{ fontSize: '16px' }} />
+                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Execution Log</span>
+                {lastExecutionError && (
+                  <Tag color="error" style={{ marginLeft: '8px' }}>Error</Tag>
+                )}
+                {!lastExecutionError && lastExecutionTrace.length > 0 && (
+                  <Tag color="success" style={{ marginLeft: '8px' }}>{lastExecutionTrace.length} nodes executed</Tag>
+                )}
+              </div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '12px' }}>
+              {/* Error Alert */}
+              {lastExecutionError && (
+                <Alert
+                  message="Execution Error"
+                  description={lastExecutionError}
+                  type="error"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                />
+              )}
+
+              {/* Node Execution Trace */}
+              {lastExecutionTrace.length > 0 && (
+                <div className="space-y-3" style={{ maxHeight: '300px', overflow: 'auto' }}>
+                  {lastExecutionTrace.map((entry, index) => {
+                    const statusDisplay = getStatusDisplay(entry.status);
+                    return (
+                      <Card
+                        key={`${entry.node_id}-${index}`}
+                        size="small"
+                        style={{
+                          borderLeft: `4px solid ${getNodeTypeColor(entry.node_type)}`,
+                          backgroundColor: entry.status === 'error' ? '#fff2f0' : 'white',
+                        }}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <Tag color={getNodeTypeColor(entry.node_type)}>
+                              {entry.node_type}
+                            </Tag>
+                            <Text strong>{entry.node_label || entry.node_id}</Text>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {entry.duration_ms !== undefined && (
+                              <Tag icon={<ClockCircleOutlined />}>
+                                {entry.duration_ms}ms
+                              </Tag>
+                            )}
+                            <Tag
+                              icon={statusDisplay.icon}
+                              color={entry.status === 'error' ? 'error' : entry.status === 'success' ? 'success' : 'warning'}
+                            >
+                              {statusDisplay.text}
+                            </Tag>
+                          </div>
+                        </div>
+
+                        {/* Error message for this node */}
+                        {entry.error && (
+                          <Alert
+                            message={entry.error}
+                            type="error"
+                            showIcon
+                            style={{ marginBottom: 8 }}
+                          />
+                        )}
+
+                        {/* Input/Output Data */}
+                        <Collapse ghost size="small">
+                          <Panel header={<Text type="secondary">Input Data</Text>} key="input">
+                            {renderNodeData(entry.input_data)}
+                          </Panel>
+                          <Panel header={<Text type="secondary">Output Data</Text>} key="output">
+                            {renderNodeData(entry.output_data)}
+                          </Panel>
+                        </Collapse>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {lastExecutionTrace.length === 0 && !lastExecutionError && (
+                <div>
+                  <Text type="secondary">No execution trace available yet.</Text>
+                  <br />
+                  <Text type="secondary" style={{ fontSize: 11 }}>
+                    Run a test to see the execution details here.
+                  </Text>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </Card>
     </div>
   );
