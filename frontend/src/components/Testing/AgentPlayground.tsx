@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Card, Input, Button, Typography, Divider, Tag, Spin, Select, Alert, Tooltip, Upload, Progress, Collapse, Badge } from 'antd';
+import { Card, Input, Button, Typography, Divider, Tag, Spin, Select, Alert, Tooltip, Upload, Progress, Collapse } from 'antd';
 import { SendOutlined, ClockCircleOutlined, ThunderboltOutlined, ReloadOutlined, AudioOutlined, UploadOutlined, PauseCircleOutlined, SoundOutlined, BugOutlined, CheckCircleOutlined, CloseCircleOutlined, CodeOutlined } from '@ant-design/icons';
 import { workflowService } from '../../features/workflows/workflowService';
 
@@ -545,29 +545,41 @@ export const AgentPlayground = ({
               {messages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                  }}
                 >
                   <div
-                    className={`max-w-[70%] p-3 rounded-lg ${
-                      message.role === 'user'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-white border border-gray-200'
-                    }`}
+                    style={{
+                      maxWidth: '70%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      backgroundColor: message.role === 'user' ? '#1890ff' : '#ffffff',
+                      color: message.role === 'user' ? '#ffffff' : 'inherit',
+                      border: message.role === 'user' ? 'none' : '1px solid #e8e8e8',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                    }}
                   >
-                    <Text
+                    {/* User label for user messages */}
+                    {message.role === 'user' && (
+                      <div style={{ fontSize: '11px', opacity: 0.8, marginBottom: '4px' }}>
+                        You
+                      </div>
+                    )}
+                    <div
                       style={{
-                        color: message.role === 'user' ? 'white' : 'inherit',
+                        color: message.role === 'user' ? '#ffffff' : 'inherit',
                         whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
                       }}
                     >
                       {message.content}
-                    </Text>
+                    </div>
 
                     {/* Audio playback for assistant messages */}
                     {message.role === 'assistant' && message.audioData && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
+                      <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #e8e8e8' }}>
                         <Button
                           type="primary"
                           size="small"
@@ -590,16 +602,15 @@ export const AgentPlayground = ({
                       </div>
                     )}
 
-                    <div className="mt-1">
-                      <Text
-                        type="secondary"
+                    <div style={{ marginTop: '4px' }}>
+                      <span
                         style={{
-                          fontSize: 11,
-                          color: message.role === 'user' ? 'rgba(255,255,255,0.7)' : undefined,
+                          fontSize: '11px',
+                          color: message.role === 'user' ? 'rgba(255,255,255,0.7)' : '#8c8c8c',
                         }}
                       >
                         {message.timestamp.toLocaleTimeString()}
-                      </Text>
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -611,26 +622,37 @@ export const AgentPlayground = ({
 
         {/* Execution Log Panel */}
         {showExecutionLog && (
-          <div className="bg-gray-100 border-t-2 border-blue-400" style={{ padding: '8px' }}>
-            <Collapse
-              defaultActiveKey={['execution-log']}
-              style={{ backgroundColor: 'white', borderRadius: '8px' }}
+          <div
+            style={{
+              backgroundColor: '#f0f5ff',
+              borderTop: '3px solid #1890ff',
+              padding: '12px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '12px',
+                padding: '8px 12px',
+                backgroundColor: '#1890ff',
+                borderRadius: '6px',
+                color: 'white',
+              }}
             >
-              <Panel
-                header={
-                  <div className="flex items-center gap-2">
-                    <CodeOutlined />
-                    <Text strong>Execution Log</Text>
-                    {lastExecutionError && (
-                      <Badge status="error" text="Error" />
-                    )}
-                    {!lastExecutionError && lastExecutionTrace.length > 0 && (
-                      <Badge status="success" text={`${lastExecutionTrace.length} nodes`} />
-                    )}
-                  </div>
-                }
-                key="execution-log"
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CodeOutlined style={{ fontSize: '16px' }} />
+                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>Execution Log</span>
+                {lastExecutionError && (
+                  <Tag color="error" style={{ marginLeft: '8px' }}>Error</Tag>
+                )}
+                {!lastExecutionError && lastExecutionTrace.length > 0 && (
+                  <Tag color="success" style={{ marginLeft: '8px' }}>{lastExecutionTrace.length} nodes executed</Tag>
+                )}
+              </div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '12px' }}>
                 {/* Error Alert */}
                 {lastExecutionError && (
                   <Alert
@@ -712,8 +734,7 @@ export const AgentPlayground = ({
                     </Text>
                   </div>
                 )}
-              </Panel>
-            </Collapse>
+            </div>
           </div>
         )}
 
