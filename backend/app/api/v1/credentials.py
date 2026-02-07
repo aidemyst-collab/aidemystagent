@@ -128,10 +128,14 @@ async def create_credential(
         )
 
     # Determine credential value based on provider type
-    # For database providers, serialize connection_config to JSON
+    # For database/voice/messaging providers, serialize connection_config to JSON
     # For LLM providers, use the api_key directly
-    if credential_data.provider in [CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB]:
-        # Database credential - serialize connection config to JSON
+    config_providers = [
+        CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB,
+        CredentialProvider.TWILIO, CredentialProvider.ETISALAT, CredentialProvider.WHATSAPP_META
+    ]
+    if credential_data.provider in config_providers:
+        # Database/voice/messaging credential - serialize connection config to JSON
         credential_value = json.dumps(credential_data.connection_config)
     else:
         # LLM credential - use api_key
@@ -279,10 +283,14 @@ async def test_credential(
             test_request.api_base = credential.api_base
             test_request.api_version = credential.api_version
 
-            # Determine if it's a database credential and extract the appropriate data
-            is_database = credential.provider in [CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB]
+            # Determine if it's a config-based credential (database/voice/messaging)
+            config_providers = [
+                CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB,
+                CredentialProvider.TWILIO, CredentialProvider.ETISALAT, CredentialProvider.WHATSAPP_META
+            ]
+            is_config_based = credential.provider in config_providers
 
-            if is_database:
+            if is_config_based:
                 # Deserialize connection config from JSON
                 import json
                 test_request.connection_config = json.loads(credential.api_key)
@@ -291,18 +299,22 @@ async def test_credential(
                 test_request.api_key = credential.api_key
 
         # Check if we have the necessary credentials based on provider type
-        is_database = test_request.provider in [CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB]
+        config_providers = [
+            CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB,
+            CredentialProvider.TWILIO, CredentialProvider.ETISALAT, CredentialProvider.WHATSAPP_META
+        ]
+        is_config_based = test_request.provider in config_providers
 
-        if not is_database and not test_request.api_key:
+        if not is_config_based and not test_request.api_key:
             return CredentialTestResponse(
                 success=False,
                 message="API key is required to test LLM credentials",
             )
 
-        if is_database and not test_request.connection_config:
+        if is_config_based and not test_request.connection_config:
             return CredentialTestResponse(
                 success=False,
-                message="Connection configuration is required to test database credentials",
+                message="Connection configuration is required to test this credential type",
             )
 
         if test_request.provider == CredentialProvider.OPENAI:
