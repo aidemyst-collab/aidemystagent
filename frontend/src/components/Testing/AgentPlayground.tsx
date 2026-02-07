@@ -552,7 +552,7 @@ export const AgentPlayground = ({
                 >
                   <div
                     style={{
-                      maxWidth: '70%',
+                      maxWidth: message.role === 'user' ? '50%' : '70%',
                       padding: '12px',
                       borderRadius: '8px',
                       backgroundColor: message.role === 'user' ? '#1890ff' : '#ffffff',
