@@ -4,6 +4,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 import asyncio
+import os
 
 # Import your models
 from app.core.database import Base
@@ -16,6 +17,11 @@ from app.models.credential import Credential
 
 # Alembic Config object
 config = context.config
+
+# Override sqlalchemy.url with DATABASE_URL environment variable if available
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
