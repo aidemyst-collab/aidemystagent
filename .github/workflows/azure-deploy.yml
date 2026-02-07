@@ -154,28 +154,11 @@ jobs:
             --query properties.configuration.ingress.fqdn -o tsv)
           curl -f https://$FRONTEND_URL/health || echo "Health check pending..."
 
-  # Run database migrations
-  migrate:
-    runs-on: ubuntu-latest
-    needs: deploy
-
-    steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Run Alembic Migrations
-        run: |
-          az containerapp exec \
-            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --name ${{ env.BACKEND_APP_NAME }} \
-            --command "alembic upgrade head" || echo "Migration may need manual execution"
-
   # Notify on completion
+  # Note: Database migrations now run automatically at container startup via start.sh
   notify:
     runs-on: ubuntu-latest
-    needs: [deploy, migrate]
+    needs: deploy
     if: always()
 
     steps:

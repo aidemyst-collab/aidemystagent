@@ -37,8 +37,9 @@ COPY --from=builder /root/.local /home/appuser/.local
 # Copy application code
 COPY --chown=appuser:appuser . .
 
-# Create logs directory with proper permissions
-RUN mkdir -p /app/logs && chown appuser:appuser /app/logs
+# Create logs directory with proper permissions and make start script executable
+RUN mkdir -p /app/logs && chown appuser:appuser /app/logs \
+    && chmod +x /app/start.sh
 
 # Set environment variables
 ENV PATH=/home/appuser/.local/bin:$PATH
@@ -55,5 +56,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application with gunicorn for production
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Run migrations and start the application
+CMD ["/app/start.sh"]
