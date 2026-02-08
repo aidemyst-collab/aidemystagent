@@ -76,10 +76,13 @@ async def get_deployment_and_credential(
     nodes = agent_config.get("nodes", [])
 
     # Find VOICE_INPUT node
+    # Node structure: { type: "VoiceInputNode", data: { type: "VOICE_INPUT", config: {...} } }
     voice_input_node = None
     for node in nodes:
-        if node.get("type") == "VOICE_INPUT":
-            voice_input_node = node.get("data", {})
+        node_data = node.get("data", {})
+        # Check both node.type and node.data.type for compatibility
+        if node.get("type") == "VOICE_INPUT" or node_data.get("type") == "VOICE_INPUT":
+            voice_input_node = node_data
             break
 
     if not voice_input_node:
@@ -88,8 +91,10 @@ async def get_deployment_and_credential(
             detail="Deployment does not have a VOICE_INPUT node",
         )
 
-    provider_name = voice_input_node.get("provider", "twilio")
-    credential_id = voice_input_node.get("credentialId")
+    # Config can be at voice_input_node.config or directly in voice_input_node
+    voice_config = voice_input_node.get("config", voice_input_node)
+    provider_name = voice_config.get("provider", "twilio")
+    credential_id = voice_config.get("credentialId")
 
     if not credential_id:
         raise HTTPException(
