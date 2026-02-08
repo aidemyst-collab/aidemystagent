@@ -126,10 +126,17 @@ def validate_ip_whitelist(
     Returns:
         Tuple of (is_valid, client_ip)
     """
+    import os
+
     client_ip = get_client_ip(request)
 
     if not client_ip:
         return False, ""
+
+    # Allow all IPs in development mode (DEBUG=true or VOICE_WEBHOOK_ALLOW_ALL=true)
+    if os.getenv("DEBUG", "").lower() == "true" or os.getenv("VOICE_WEBHOOK_ALLOW_ALL", "").lower() == "true":
+        logger.debug(f"DEBUG mode - allowing all IPs: {client_ip}")
+        return True, client_ip
 
     # Allow localhost for development
     if allow_localhost and client_ip in ["127.0.0.1", "::1", "localhost"]:
