@@ -7,7 +7,6 @@ Handles voice calls via Twilio's API using TwiML responses.
 import hmac
 import hashlib
 import base64
-from urllib.parse import urlencode
 from typing import Optional
 
 import httpx
@@ -206,10 +205,14 @@ class TwilioProvider(VoiceProvider):
         Validate Twilio webhook signature.
 
         Twilio uses HMAC-SHA1 for signature validation.
+        The signature is computed from:
+        1. The full URL (including query string)
+        2. POST parameters sorted alphabetically, concatenated as key=value pairs
         """
         # Build the signature base string
+        # Twilio concatenates params directly (no URL encoding, no delimiters between pairs)
         sorted_params = sorted(request_body.items())
-        param_string = request_url + urlencode(sorted_params, safe="")
+        param_string = request_url + "".join(f"{k}{v}" for k, v in sorted_params)
 
         # Compute the expected signature
         expected_signature = base64.b64encode(

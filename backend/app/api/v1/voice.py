@@ -34,6 +34,28 @@ from app.services.voice_providers import (
     get_client_ip,
 )
 
+
+def get_original_url(request: Request) -> str:
+    """
+    Reconstruct the original URL that Twilio signed.
+
+    When behind a reverse proxy, request.url returns the internal URL.
+    Twilio signs the external URL, so we must reconstruct it from
+    X-Forwarded-* headers.
+    """
+    # Get forwarded headers (set by nginx/proxy)
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    forwarded_host = request.headers.get("x-forwarded-host", request.url.netloc)
+
+    # Reconstruct the URL with original scheme and host
+    original_url = f"{forwarded_proto}://{forwarded_host}{request.url.path}"
+
+    # Include query string if present
+    if request.url.query:
+        original_url += f"?{request.url.query}"
+
+    return original_url
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -193,7 +215,7 @@ async def handle_incoming_call(
 
         # Security Layer 4: Validate webhook signature
         signature = x_twilio_signature or x_etisalat_signature or ""
-        request_url = str(request.url)
+        request_url = get_original_url(request)
 
         if signature and not provider.validate_webhook_signature(
             request_url, request_data, signature
