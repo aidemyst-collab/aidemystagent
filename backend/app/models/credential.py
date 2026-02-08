@@ -7,6 +7,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
 import uuid
+import json
 
 from app.core.database import Base
 
@@ -64,6 +65,29 @@ class Credential(Base):
     # Relationships
     user = relationship("User", back_populates="credentials")
     organization = relationship("Organization", back_populates="credentials")
+
+    @property
+    def decrypted_value(self):
+        """
+        Returns the decrypted credential value.
+        For config-based providers (Twilio, Etisalat, WhatsApp, databases), parses JSON.
+        For LLM providers, returns the API key string.
+        """
+        config_providers = [
+            CredentialProvider.TWILIO,
+            CredentialProvider.ETISALAT,
+            CredentialProvider.WHATSAPP_META,
+            CredentialProvider.REDIS,
+            CredentialProvider.POSTGRESQL,
+            CredentialProvider.MONGODB,
+        ]
+
+        if self.provider in config_providers:
+            try:
+                return json.loads(self.api_key)
+            except (json.JSONDecodeError, TypeError):
+                return self.api_key
+        return self.api_key
 
     def __repr__(self):
         return f"<Credential(id={self.id}, name={self.name}, provider={self.provider})>"
