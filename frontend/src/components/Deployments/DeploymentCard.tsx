@@ -6,6 +6,7 @@ import {
   ReloadOutlined,
   DeleteOutlined,
   CopyOutlined,
+  ExportOutlined,
 } from '@ant-design/icons';
 
 interface DeploymentCardProps {
@@ -20,6 +21,7 @@ interface DeploymentCardProps {
   onStop: (id: string) => void;
   onRestart: (id: string) => void;
   onDelete: (id: string) => void;
+  onExport: (id: string) => void;
 }
 
 const statusColors: Record<string, string> = {
@@ -48,6 +50,7 @@ export const DeploymentCard: React.FC<DeploymentCardProps> = ({
   onStop,
   onRestart,
   onDelete,
+  onExport,
 }) => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -68,6 +71,14 @@ export const DeploymentCard: React.FC<DeploymentCardProps> = ({
       }
       extra={
         <Space>
+          <Tooltip title="Export JSON">
+            <Button
+              type="text"
+              size="small"
+              icon={<ExportOutlined />}
+              onClick={() => onExport(id)}
+            />
+          </Tooltip>
           {status === 'active' && (
             <Tooltip title="Stop Deployment">
               <Button

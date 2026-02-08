@@ -99,6 +99,31 @@ export const Deployments: React.FC = () => {
     }
   };
 
+  const handleExport = async (id: string) => {
+    try {
+      const exportData = await apiClient.get(`/deployments/${id}/export`);
+
+      // Create and download JSON file
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `deployment-${id}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      message.success('Deployment exported successfully');
+    } catch (err) {
+      message.error(
+        err instanceof Error ? err.message : 'Failed to export deployment'
+      );
+    }
+  };
+
   const openDeployModal = (agent: Agent) => {
     setSelectedAgent(agent);
     setModalVisible(true);
@@ -194,6 +219,7 @@ export const Deployments: React.FC = () => {
                 onStop={handleStop}
                 onRestart={handleRestart}
                 onDelete={handleDelete}
+                onExport={handleExport}
               />
             </Col>
           ))}

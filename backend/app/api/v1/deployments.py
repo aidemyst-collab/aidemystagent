@@ -20,6 +20,7 @@ from app.schemas.deployment import (
     DeploymentUpdate,
     DeploymentResponse,
     DeploymentList,
+    DeploymentExport,
 )
 from app.api.deps import (
     get_current_active_user,
@@ -209,6 +210,73 @@ async def get_deployment(
         )
 
     return deployment
+
+
+@router.get("/{deployment_id}/export", response_model=DeploymentExport)
+async def export_deployment(
+    deployment_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
+    _: None = Depends(require_permission("deployments:read")),
+):
+    """
+    Export full deployment configuration including agent workflow.
+
+    Returns the complete deployment with:
+    - Deployment metadata (id, status, environment, etc.)
+    - Agent info (name, description)
+    - Full workflow (nodes and edges)
+
+    Useful for debugging, analysis, and backup purposes.
+    """
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(Deployment)
+        .options(selectinload(Deployment.agent))
+        .where(
+            Deployment.id == deployment_id,
+            Deployment.deleted_at.is_(None),
+        )
+    )
+    deployment = result.scalar_one_or_none()
+
+    if not deployment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deployment not found",
+        )
+
+    # Check organization access
+    if deployment.organization_id != effective_org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this deployment",
+        )
+
+    agent = deployment.agent
+    if not agent:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Associated agent not found",
+        )
+
+    return DeploymentExport(
+        id=deployment.id,
+        agent_id=agent.id,
+        agent_name=agent.name,
+        agent_description=agent.description,
+        version=deployment.version,
+        environment=deployment.environment,
+        status=deployment.status,
+        endpoint_url=deployment.endpoint_url,
+        api_key=deployment.api_key,
+        deployed_at=deployment.deployed_at,
+        created_at=deployment.created_at,
+        deployment_config=deployment.config or {},
+        workflow=agent.config or {},
+    )
 
 
 @router.patch("/{deployment_id}", response_model=DeploymentResponse)

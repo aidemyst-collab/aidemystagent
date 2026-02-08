@@ -48,3 +48,30 @@ class DeploymentList(BaseModel):
     """Schema for deployment list response."""
     deployments: list[DeploymentResponse]
     total: int
+
+
+class DeploymentExport(BaseModel):
+    """Schema for exporting full deployment with agent workflow."""
+    id: UUID
+    agent_id: UUID
+    agent_name: str
+    agent_description: Optional[str] = None
+    version: str
+    environment: DeploymentEnvironment
+    status: DeploymentStatus
+    endpoint_url: Optional[str] = None
+    api_key: Optional[str] = None
+    deployed_at: Optional[datetime] = None
+    created_at: datetime
+
+    # Deployment config
+    deployment_config: Dict[str, Any] = Field(default_factory=dict)
+
+    # Agent workflow (nodes and edges)
+    workflow: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Full agent workflow with nodes and edges"
+    )
+
+    class Config:
+        from_attributes = True
