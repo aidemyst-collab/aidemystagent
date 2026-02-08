@@ -391,19 +391,25 @@ async def handle_recording_complete(
 
         # Execute the workflow with audio input
         try:
-            engine = LangGraphEngine(deployment.agent.config)
+            engine = LangGraphEngine(db=db, redis_client=await get_redis())
 
-            # Prepare input state
-            input_state = {
+            # Prepare input for workflow
+            user_input = {
                 "audio_data": base64.b64encode(audio_data.audio_data).decode("utf-8"),
                 "audio_format": audio_data.audio_format,
                 "caller_id": recording_data.get("call_sid", ""),
-                "session_id": session_id,
                 "provider": provider_name,
             }
 
             # Execute workflow
-            result = await engine.execute(input_state, session_id=session_id)
+            result = await engine.execute_agent(
+                agent_config=deployment.agent.config,
+                user_input=user_input,
+                input_mode="audio",
+                session_id=session_id,
+                organization_id=str(deployment.organization_id),
+                workflow_id=str(deployment.agent_id),
+            )
 
             # Get output audio or text from result
             voice_output = result.get("voice_output", {})
