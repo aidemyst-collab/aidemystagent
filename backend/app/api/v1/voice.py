@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.redis_client import get_redis
@@ -52,9 +53,11 @@ async def get_deployment_and_credential(
     Returns:
         Tuple of (deployment, credential, provider_name)
     """
-    # Validate deployment
+    # Validate deployment (eagerly load agent to avoid async lazy loading issues)
     result = await db.execute(
-        select(Deployment).where(
+        select(Deployment)
+        .options(selectinload(Deployment.agent))
+        .where(
             Deployment.id == deployment_id,
             Deployment.api_key == api_key,
             Deployment.status == "active",
