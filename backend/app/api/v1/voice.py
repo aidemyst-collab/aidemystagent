@@ -35,6 +35,18 @@ from app.services.voice_providers import (
 )
 
 
+def get_original_base_url(request: Request) -> str:
+    """
+    Reconstruct the original base URL from forwarded headers.
+
+    When behind a reverse proxy, request.base_url returns the internal URL.
+    We need the external URL for callback URLs that Twilio will call.
+    """
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    forwarded_host = request.headers.get("x-forwarded-host", request.url.netloc)
+    return f"{forwarded_proto}://{forwarded_host}/"
+
+
 def get_original_url(request: Request) -> str:
     """
     Reconstruct the original URL that Twilio signed.
@@ -249,8 +261,9 @@ async def handle_incoming_call(
         )
 
         # Generate greeting response
+        base_url = get_original_base_url(request)
         recording_callback_url = (
-            f"{request.base_url}api/v1/voice/webhook/recording/{deployment_id}"
+            f"{base_url}api/v1/voice/webhook/recording/{deployment_id}"
             f"?api_key={api_key}&session_id={session_id}"
         )
 
@@ -426,7 +439,8 @@ async def handle_recording_complete(
                 output_audio if isinstance(output_audio, bytes) else base64.b64decode(output_audio),
             )
 
-            audio_url = f"{request.base_url}api/v1/voice/audio/{audio_id}"
+            base_url = get_original_base_url(request)
+            audio_url = f"{base_url}api/v1/voice/audio/{audio_id}"
 
             if after_action == "continue":
                 # Play audio then continue recording
