@@ -48,8 +48,14 @@ ETISALAT_IP_RANGES = [
     # Add actual Etisalat CPaaS IP ranges here
 ]
 
+# Development/Testing IPs - Add your IPs here for local testing
+DEV_ALLOWED_IPS = [
+    "217.164.6.153/32",  # Azam's IPv4
+    "2001:8f8:1761:8bc:9df3:910d:3c3a:eba2/128",  # Azam's IPv6
+]
+
 # Combined ranges for when provider is unknown
-ALL_VOICE_PROVIDER_IPS = TWILIO_IP_RANGES + ETISALAT_IP_RANGES
+ALL_VOICE_PROVIDER_IPS = TWILIO_IP_RANGES + ETISALAT_IP_RANGES + DEV_ALLOWED_IPS
 
 
 def get_client_ip(request: Request) -> str:
