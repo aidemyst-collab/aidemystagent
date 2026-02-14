@@ -1,0 +1,126 @@
+{
+  "id": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/containerapps/agentstudio-frontend",
+  "identity": {
+    "type": "None"
+  },
+  "location": "UAE North",
+  "name": "agentstudio-frontend",
+  "properties": {
+    "configuration": {
+      "activeRevisionsMode": "Single",
+      "dapr": null,
+      "identitySettings": [],
+      "ingress": {
+        "additionalPortMappings": null,
+        "allowInsecure": false,
+        "clientCertificateMode": null,
+        "corsPolicy": null,
+        "customDomains": null,
+        "exposedPort": 0,
+        "external": true,
+        "fqdn": "agentstudio-frontend.orangestone-66d8b5ee.uaenorth.azurecontainerapps.io",
+        "ipSecurityRestrictions": null,
+        "stickySessions": null,
+        "targetPort": 80,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ],
+        "transport": "Auto"
+      },
+      "maxInactiveRevisions": 100,
+      "registries": [
+        {
+          "identity": "",
+          "passwordSecretRef": "agentstudioacrazurecrio-agentstudioacr",
+          "server": "agentstudioacr.azurecr.io",
+          "username": "agentstudioacr"
+        }
+      ],
+      "runtime": null,
+      "secrets": [
+        {
+          "name": "agentstudioacrazurecrio-agentstudioacr"
+        }
+      ],
+      "service": null
+    },
+    "customDomainVerificationId": "0C0151BD0525F0B3E0F6A61B83FEB29FC65ADBD2F1CD5A4A5A94CA808C822917",
+    "delegatedIdentities": [],
+    "environmentId": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/managedEnvironments/agentstudio-env",
+    "eventStreamEndpoint": "https://uaenorth.azurecontainerapps.dev/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/containerApps/agentstudio-frontend/eventstream",
+    "latestReadyRevisionName": "agentstudio-frontend--0000027",
+    "latestRevisionFqdn": "agentstudio-frontend--0000027.orangestone-66d8b5ee.uaenorth.azurecontainerapps.io",
+    "latestRevisionName": "agentstudio-frontend--0000027",
+    "managedEnvironmentId": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/managedEnvironments/agentstudio-env",
+    "outboundIpAddresses": [
+      "20.203.70.37",
+      "20.233.87.121",
+      "20.233.87.215",
+      "20.233.112.232",
+      "20.233.247.161",
+      "20.233.192.155",
+      "20.233.192.152",
+      "20.233.192.184",
+      "20.233.192.128",
+      "20.233.245.171",
+      "20.233.94.65",
+      "20.233.94.43",
+      "20.233.94.56",
+      "20.233.94.22",
+      "20.174.42.59",
+      "20.174.42.170",
+      "20.174.41.65",
+      "20.174.40.223",
+      "20.174.40.63",
+      "20.174.41.166",
+      "20.233.184.215"
+    ],
+    "provisioningState": "Succeeded",
+    "runningStatus": "Running",
+    "template": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "SECRET_KEY",
+              "value": "2D5CaNSyOyJEiYCcs0zZNvcFkHJ8NJOKTUlP8zGWfzFCaaJR2vao/ZIqKBwzkdQg"
+            }
+          ],
+          "image": "agentstudioacr.azurecr.io/agentstudio-frontend:development",
+          "name": "agentstudio-frontend",
+          "resources": {
+            "cpu": 0.25,
+            "ephemeralStorage": "1Gi",
+            "memory": "0.5Gi"
+          }
+        }
+      ],
+      "initContainers": null,
+      "revisionSuffix": "",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 5,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "serviceBinds": null,
+      "terminationGracePeriodSeconds": null,
+      "volumes": null
+    },
+    "workloadProfileName": "Consumption"
+  },
+  "resourceGroup": "agentstudio-rg",
+  "systemData": {
+    "createdAt": "2026-01-17T08:17:39.3393499",
+    "createdBy": "cloudaidemyst@outlook.com",
+    "createdByType": "User",
+    "lastModifiedAt": "2026-02-08T16:31:21.036499",
+    "lastModifiedBy": "e9d939dd-6cc4-4f00-8f41-fa595df6f659",
+    "lastModifiedByType": "Application"
+  },
+  "type": "Microsoft.App/containerApps"
+}

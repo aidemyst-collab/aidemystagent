@@ -1,0 +1,104 @@
+⏺ You're right! Let me check what revision Azure is actually running:
+
+⏺ Bash(az containerapp revision list --name agentstudio-frontend --resource-group agentstudio-rg -o table 2>/dev/null)
+  ⎿ CreatedTime                Active    Replicas    TrafficWeight    HealthState    ProvisioningState    Name          
+    -------------------------  --------  ----------  ---------------  -------------  -------------------  --------------
+    ---------------
+    … +2 lines (ctrl+o to expand)
+
+
+⏺ FOUND IT!
+
+  Azure is running an old revision from January 17th (yesterday):
+
+  | Revision                      | Created             | Active | Traffic |
+  |-------------------------------|---------------------|--------|---------|
+  | agentstudio-frontend--0000001 | 2026-01-17T16:26:33 | True   | 100%    |
+
+  The deployments are NOT updating the container. All our builds pushed new images but Azure never pulled them.
+
+⏺ Bash(az containerapp revision list --name agentstudio-backend --resource-group agentstudio-rg -o table 2>/dev/null)
+  ⎿ CreatedTime                Active    Replicas    TrafficWeight    HealthState    ProvisioningState    Name          
+    -------------------------  --------  ----------  ---------------  -------------  -------------------  --------------
+    --------------
+    … +2 lines (ctrl+o to expand)
+
+
+⏺ Backend has newer revision (0000004) but frontend is stuck on the first revision (0000001).
+
+  Let me force update the frontend container:
+
+⏺ Bash(az containerapp update \
+        --name agentstudio-frontend \…)
+  ⎿  ERROR: unrecognized arguments:  
+
+     Examples from AI knowledge base:
+     … +2 lines (ctrl+o to expand)
+
+⏺ Bash(az containerapp update --name agentstudio-frontend --resource-group agentstudio-rg --image
+      agentstudioacr.azurecr.io/agentstudio-frontend:development -o table 2…)
+Name                  Location       
+    ResourceGroup    Fqdn
+    --------------------  ----------  ---------------  -----------------------------------------------------------------
+    … +3 lines (ctrl+o to expand)
+
+
+⏺ Bash(az containerapp revision list --name agentstudio-frontend --resource-group agentstudio-rg -o table)
+  ⎿ CreatedTime                Active    Replicas    TrafficWeight    HealthState    ProvisioningState    Name          
+    -------------------------  --------  ----------  ---------------  -------------  -------------------  --------------
+    ---------------
+    … +2 lines (ctrl+o to expand)
+
+
+⏺ The image tag is the same so no new revision was created. Let me force a new revision:
+
+⏺ Bash(az containerapp revision copy --name agentstudio-frontend --resource-group agentstudio-rg --image
+      agentstudioacr.azurecr.io/agentstudio-frontend:development -o…)
+Location    Name                  Resourcoup
+     ----------  --------------------  ---------------
+     UAE North   agentstudio-frontend  agentstudio-rg
+
+⏺ Bash(az containerapp revision list --name agentstudio-frontend --resource-group agentstudio-rg -o table)
+  ⎿ CreatedTime                Active    Replicas    TrafficWeight    HealthState    ProvisioningState    Name          
+    -------------------------  --------  ----------  ---------------  -------------  -------------------  --------------
+    ---------------
+    … +2 lines (ctrl+o to expand)
+
+
+⏺ Azure is caching the image. Let me trigger a fresh build and then deploy with the specific commit SHA:
+
+⏺ Bash(gh workflow run "Deploy to Azure" --ref development && echo "Build triggered")
+  ⎿  Build triggered
+
+⏺ Bash(sleep 5 && gh run list --limit 1)
+  ⎿ in_progress         Deploy to Azure Deploy to Azure development     workflow_dispatch       21110734103     13s     2026-01-18T11:09:03Z     
+
+
+
+⏺ Build running. Here's the issue and fix:
+
+  Root Cause
+
+  The GitHub Actions workflow deploys using imageToDeploy: .../agentstudio-frontend:development.
+
+  Azure sees the same tag (:development) and doesn't pull the new image because it thinks it already has it.
+
+  After This Build
+
+  Once done, I'll update the frontend with the commit SHA tag to force Azure to pull the new image:
+
+  az containerapp update --name agentstudio-frontend --resource-group agentstudio-rg \
+    --image agentstudioacr.azurecr.io/agentstudio-frontend:9bfc918
+
+  Want me to check when the build is complete?
+
+> yes check 
+
+⏺ Bash(gh run view 21110734103)
+  ⎿  ✓ development Deploy to Azure · 21110734103        
+     Triggered via workflow_dispatch about 6 minutes ago
+     … +17 lines (ctrl+o to expand)
+  ⎿  You've hit your limit · resets 5pm (Asia/Dubai)
+     Opening your options…
+
+> Unknown slash command: rate-limit-options 

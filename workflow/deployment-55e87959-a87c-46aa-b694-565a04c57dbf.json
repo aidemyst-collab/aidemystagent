@@ -1,0 +1,189 @@
+{
+  "id": "55e87959-a87c-46aa-b694-565a04c57dbf",
+  "agent_id": "14ae59b6-e52d-4add-b23d-247ee07562a2",
+  "agent_name": "Audio Agent",
+  "agent_description": "Audio Agent\n",
+  "version": "1.0.0",
+  "environment": "staging",
+  "status": "active",
+  "endpoint_url": "/orgs/agentstudio/deployments/55e87959-a87c-46aa-b694-565a04c57dbf/invoke",
+  "api_key": "sk-cnu8y1lpBl8_-7AUZ_hrzunNBcd_mwY0vyuHAjrx8Q0",
+  "deployed_at": "2026-02-08T08:44:51.265291",
+  "created_at": "2026-02-08T08:44:49.880162",
+  "deployment_config": {
+    "timeout": 300,
+    "auto_scale": true,
+    "max_concurrent": 10
+  },
+  "workflow": {
+    "edges": [
+      {
+        "id": "xy-edge__voice_input_1770458580902-audio_to_text_1770475637696",
+        "type": "default",
+        "style": {
+          "stroke": "#b1b1b7",
+          "strokeWidth": 2
+        },
+        "source": "voice_input_1770458580902",
+        "target": "audio_to_text_1770475637696",
+        "animated": false
+      },
+      {
+        "id": "xy-edge__audio_to_text_1770475637696-llm_agent_1770460336041input",
+        "type": "default",
+        "style": {
+          "stroke": "#b1b1b7",
+          "strokeWidth": 2
+        },
+        "source": "audio_to_text_1770475637696",
+        "target": "llm_agent_1770460336041",
+        "animated": false,
+        "targetHandle": "input"
+      },
+      {
+        "id": "xy-edge__llm_agent_1770460336041output-text_to_audio_1770475712344",
+        "type": "default",
+        "style": {
+          "stroke": "#b1b1b7",
+          "strokeWidth": 2
+        },
+        "source": "llm_agent_1770460336041",
+        "target": "text_to_audio_1770475712344",
+        "animated": false,
+        "sourceHandle": "output"
+      },
+      {
+        "id": "xy-edge__text_to_audio_1770475712344-voice_output_1770460362439",
+        "type": "default",
+        "style": {
+          "stroke": "#b1b1b7",
+          "strokeWidth": 2
+        },
+        "source": "text_to_audio_1770475712344",
+        "target": "voice_output_1770460362439",
+        "animated": false
+      }
+    ],
+    "nodes": [
+      {
+        "id": "voice_input_1770458580902",
+        "data": {
+          "type": "VOICE_INPUT",
+          "label": "Voice Input",
+          "config": {
+            "credentialId": "7eb7eaec-cfa0-44df-826a-422f0161bd8f"
+          }
+        },
+        "type": "VoiceInputNode",
+        "dragging": true,
+        "measured": {
+          "width": 180,
+          "height": 131
+        },
+        "position": {
+          "x": -390.57583310450167,
+          "y": -518.3879000326808
+        },
+        "selected": false
+      },
+      {
+        "id": "llm_agent_1770460336041",
+        "data": {
+          "type": "LLM_AGENT",
+          "label": "LLM Agent",
+          "config": {
+            "modelConfig": {
+              "model": "gpt-4"
+            },
+            "credentialId": "6788d392-86a5-48a8-8866-97fbb84efa29",
+            "systemPrompt": "You are a travel insurance advisor"
+          }
+        },
+        "type": "LLMAgentNode",
+        "dragging": true,
+        "measured": {
+          "width": 250,
+          "height": 100
+        },
+        "position": {
+          "x": 118.32813954495714,
+          "y": -328.0824218508518
+        },
+        "selected": true
+      },
+      {
+        "id": "voice_output_1770460362439",
+        "data": {
+          "type": "VOICE_OUTPUT",
+          "label": "Voice Output",
+          "config": {}
+        },
+        "type": "VoiceOutputNode",
+        "dragging": true,
+        "measured": {
+          "width": 180,
+          "height": 98
+        },
+        "position": {
+          "x": 692.209201130471,
+          "y": -106.085386712844
+        },
+        "selected": false
+      },
+      {
+        "id": "audio_to_text_1770475637696",
+        "data": {
+          "type": "AUDIO_TO_TEXT",
+          "label": "Audio to Text",
+          "config": {
+            "model": "whisper-1",
+            "language": "",
+            "credentialId": "6788d392-86a5-48a8-8866-97fbb84efa29"
+          }
+        },
+        "type": "AudioToTextNode",
+        "dragging": false,
+        "measured": {
+          "width": 180,
+          "height": 98
+        },
+        "position": {
+          "x": -116.01475797037914,
+          "y": -398.5019526451843
+        },
+        "selected": false
+      },
+      {
+        "id": "text_to_audio_1770475712344",
+        "data": {
+          "type": "TEXT_TO_AUDIO",
+          "label": "Text to Audio",
+          "config": {
+            "voice": "nova",
+            "credentialId": "6788d392-86a5-48a8-8866-97fbb84efa29"
+          }
+        },
+        "type": "TextToAudioNode",
+        "dragging": true,
+        "measured": {
+          "width": 180,
+          "height": 131
+        },
+        "position": {
+          "x": 435.69766709503364,
+          "y": -196.6429402891132
+        },
+        "selected": false
+      }
+    ],
+    "status": "draft",
+    "version": 1,
+    "executionSettings": {
+      "timeout": 30000,
+      "retryPolicy": {
+        "maxRetries": 3,
+        "retryDelay": 1000
+      }
+    }
+  }
+}

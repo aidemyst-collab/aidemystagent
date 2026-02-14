@@ -23,7 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.redis_client import get_redis
+from app.core.redis_client import get_redis, get_redis_binary
 from app.core.config import settings
 from app.models.deployment import Deployment
 from app.models.credential import Credential
@@ -438,9 +438,10 @@ async def handle_recording_complete(
 
         # Generate appropriate response
         if output_audio:
-            # Store audio temporarily and get URL
+            # Store audio temporarily and get URL (use binary redis for audio data)
             audio_id = str(uuid.uuid4())
-            await redis.setex(
+            redis_binary = await get_redis_binary()
+            await redis_binary.setex(
                 f"voice_audio:{audio_id}",
                 300,  # 5 minutes TTL
                 output_audio if isinstance(output_audio, bytes) else base64.b64decode(output_audio),
@@ -504,7 +505,7 @@ async def get_audio(audio_id: str):
 
     Audio files are stored temporarily in Redis for playback.
     """
-    redis = await get_redis()
+    redis = await get_redis_binary()
     audio_data = await redis.get(f"voice_audio:{audio_id}")
 
     if not audio_data:

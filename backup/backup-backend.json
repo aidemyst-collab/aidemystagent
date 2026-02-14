@@ -1,0 +1,138 @@
+{
+  "id": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/containerapps/agentstudio-backend",
+  "identity": {
+    "type": "None"
+  },
+  "location": "UAE North",
+  "name": "agentstudio-backend",
+  "properties": {
+    "configuration": {
+      "activeRevisionsMode": "Single",
+      "dapr": null,
+      "identitySettings": [],
+      "ingress": {
+        "additionalPortMappings": null,
+        "allowInsecure": false,
+        "clientCertificateMode": null,
+        "corsPolicy": null,
+        "customDomains": null,
+        "exposedPort": 0,
+        "external": true,
+        "fqdn": "agentstudio-backend.orangestone-66d8b5ee.uaenorth.azurecontainerapps.io",
+        "ipSecurityRestrictions": null,
+        "stickySessions": null,
+        "targetPort": 8000,
+        "traffic": [
+          {
+            "latestRevision": true,
+            "weight": 100
+          }
+        ],
+        "transport": "Auto"
+      },
+      "maxInactiveRevisions": 100,
+      "registries": [
+        {
+          "identity": "",
+          "passwordSecretRef": "agentstudioacrazurecrio-agentstudioacr",
+          "server": "agentstudioacr.azurecr.io",
+          "username": "agentstudioacr"
+        }
+      ],
+      "runtime": null,
+      "secrets": [
+        {
+          "name": "agentstudioacrazurecrio-agentstudioacr"
+        }
+      ],
+      "service": null
+    },
+    "customDomainVerificationId": "0C0151BD0525F0B3E0F6A61B83FEB29FC65ADBD2F1CD5A4A5A94CA808C822917",
+    "delegatedIdentities": [],
+    "environmentId": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/managedEnvironments/agentstudio-env",
+    "eventStreamEndpoint": "https://uaenorth.azurecontainerapps.dev/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/containerApps/agentstudio-backend/eventstream",
+    "latestReadyRevisionName": "agentstudio-backend--v1770568530",
+    "latestRevisionFqdn": "agentstudio-backend--v1770568530.orangestone-66d8b5ee.uaenorth.azurecontainerapps.io",
+    "latestRevisionName": "agentstudio-backend--v1770568530",
+    "managedEnvironmentId": "/subscriptions/af5650a2-7195-4ac3-8280-c8ee6893e64e/resourceGroups/agentstudio-rg/providers/Microsoft.App/managedEnvironments/agentstudio-env",
+    "outboundIpAddresses": [
+      "20.203.70.37",
+      "20.233.87.121",
+      "20.233.87.215",
+      "20.233.112.232",
+      "20.233.247.161",
+      "20.233.192.155",
+      "20.233.192.152",
+      "20.233.192.184",
+      "20.233.192.128",
+      "20.233.245.171",
+      "20.233.94.65",
+      "20.233.94.43",
+      "20.233.94.56",
+      "20.233.94.22",
+      "20.174.42.59",
+      "20.174.42.170",
+      "20.174.41.65",
+      "20.174.40.223",
+      "20.174.40.63",
+      "20.174.41.166",
+      "20.233.184.215"
+    ],
+    "provisioningState": "Succeeded",
+    "runningStatus": "Running",
+    "template": {
+      "containers": [
+        {
+          "env": [
+            {
+              "name": "SECRET_KEY",
+              "value": "2D5CaNSyOyJEiYCcs0zZNvcFkHJ8NJOKTUlP8zGWfzFCaaJR2vao/ZIqKBwzkdQg"
+            },
+            {
+              "name": "DATABASE_URL",
+              "value": "postgresql+asyncpg://agentadmin:1mVw2Bk4xjEkPFtWWwOS3pEaqboEzMfH@agentstudio-db.postgres.database.azure.com/agentstudio?ssl=require"
+            },
+            {
+              "name": "REDIS_URL",
+              "value": "rediss://:23IcPSjv2JhDgl7JRxrUyAPDKAEuqwCviAzCaH8q2Vo=@agentstudio-redis.redis.cache.windows.net:6380/"
+            },
+            {
+              "name": "VOICE_WEBHOOK_ALLOW_ALL",
+              "value": "true"
+            }
+          ],
+          "image": "agentstudioacr.azurecr.io/agentstudio-backend:24f837d",
+          "name": "agentstudio-backend",
+          "resources": {
+            "cpu": 0.5,
+            "ephemeralStorage": "2Gi",
+            "memory": "1Gi"
+          }
+        }
+      ],
+      "initContainers": null,
+      "revisionSuffix": "v1770568530",
+      "scale": {
+        "cooldownPeriod": 300,
+        "maxReplicas": 10,
+        "minReplicas": 1,
+        "pollingInterval": 30,
+        "rules": null
+      },
+      "serviceBinds": null,
+      "terminationGracePeriodSeconds": null,
+      "volumes": null
+    },
+    "workloadProfileName": "Consumption"
+  },
+  "resourceGroup": "agentstudio-rg",
+  "systemData": {
+    "createdAt": "2026-01-17T08:16:52.9126614",
+    "createdBy": "cloudaidemyst@outlook.com",
+    "createdByType": "User",
+    "lastModifiedAt": "2026-02-08T16:35:37.0662071",
+    "lastModifiedBy": "cloudaidemyst@outlook.com",
+    "lastModifiedByType": "User"
+  },
+  "type": "Microsoft.App/containerApps"
+}
