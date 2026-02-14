@@ -75,6 +75,8 @@ class TwilioProvider(VoiceProvider):
         after_action: str = "hangup",
         transfer_to: Optional[str] = None,
         loop: int = 1,
+        recording_callback_url: Optional[str] = None,
+        max_duration: int = 60,
     ) -> VoiceResponse:
         """Generate TwiML to play audio."""
         content = f'<Play loop="{loop}">{self._escape_xml(audio_url)}</Play>'
@@ -83,7 +85,12 @@ class TwilioProvider(VoiceProvider):
             content += "<Hangup/>"
         elif after_action == "transfer" and transfer_to:
             content += f'<Dial>{self._escape_xml(transfer_to)}</Dial>'
-        # 'continue' action doesn't need additional TwiML
+        elif after_action == "continue" and recording_callback_url:
+            # Add Record element to continue the conversation
+            content += (
+                f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
+                f'playBeep="true" timeout="3" transcribe="false"/>'
+            )
 
         return VoiceResponse(
             content=self._twiml(content),

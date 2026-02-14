@@ -88,6 +88,8 @@ class EtisalatProvider(VoiceProvider):
         after_action: str = "hangup",
         transfer_to: Optional[str] = None,
         loop: int = 1,
+        recording_callback_url: Optional[str] = None,
+        max_duration: int = 60,
     ) -> VoiceResponse:
         """Generate JSON to play audio."""
         actions = [
@@ -105,7 +107,15 @@ class EtisalatProvider(VoiceProvider):
                 "action": "transfer",
                 "destination": transfer_to,
             })
-        # 'continue' action doesn't need additional action
+        elif after_action == "continue" and recording_callback_url:
+            # Add record action to continue the conversation
+            actions.append({
+                "action": "record",
+                "max_duration": max_duration,
+                "beep": True,
+                "silence_timeout": 3,
+                "callback_url": recording_callback_url,
+            })
 
         return VoiceResponse(
             content=self._json_response(actions),

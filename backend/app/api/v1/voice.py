@@ -430,8 +430,10 @@ async def handle_recording_complete(
         nodes = deployment.agent.config.get("nodes", [])
         voice_output_config = {}
         for node in nodes:
-            if node.get("type") == "VOICE_OUTPUT":
-                voice_output_config = node.get("data", {})
+            node_data = node.get("data", {})
+            # Check both node.type and node.data.type for compatibility
+            if node.get("type") == "VOICE_OUTPUT" or node_data.get("type") == "VOICE_OUTPUT":
+                voice_output_config = node_data
                 break
 
         after_action = voice_output_config.get("afterResponse", "hangup")
@@ -451,10 +453,17 @@ async def handle_recording_complete(
             audio_url = f"{base_url}api/v1/voice/audio/{audio_id}"
 
             if after_action == "continue":
+                # Build recording callback URL for continue action
+                recording_callback_url = (
+                    f"{base_url}api/v1/voice/webhook/recording/{deployment_id}"
+                    f"?api_key={api_key}&session_id={session_id}"
+                )
                 # Play audio then continue recording
                 response = provider.generate_audio_response(
                     audio_url=audio_url,
                     after_action="continue",
+                    recording_callback_url=recording_callback_url,
+                    max_duration=voice_config.get("config", {}).get("maxDuration", 60),
                 )
             else:
                 response = provider.generate_audio_response(

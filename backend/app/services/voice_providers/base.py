@@ -102,6 +102,8 @@ class VoiceProvider(ABC):
         after_action: str = "hangup",
         transfer_to: Optional[str] = None,
         loop: int = 1,
+        recording_callback_url: Optional[str] = None,
+        max_duration: int = 60,
     ) -> VoiceResponse:
         """
         Generate response to play audio.
@@ -111,6 +113,8 @@ class VoiceProvider(ABC):
             after_action: Action after playing ('hangup', 'continue', 'transfer')
             transfer_to: Phone number to transfer to (if after_action is 'transfer')
             loop: Number of times to loop the audio
+            recording_callback_url: URL to receive next recording (required if after_action is 'continue')
+            max_duration: Max recording duration in seconds (for continue action)
 
         Returns:
             VoiceResponse with provider-specific format
