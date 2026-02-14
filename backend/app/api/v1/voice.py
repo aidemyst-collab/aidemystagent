@@ -433,10 +433,11 @@ async def handle_recording_complete(
             node_data = node.get("data", {})
             # Check both node.type and node.data.type for compatibility
             if node.get("type") == "VOICE_OUTPUT" or node_data.get("type") == "VOICE_OUTPUT":
-                voice_output_config = node_data
+                voice_output_config = node_data.get("config", {})
                 break
 
-        after_action = voice_output_config.get("afterResponse", "hangup")
+        # Default to "continue" for voice agents to maintain conversation
+        after_action = voice_output_config.get("afterResponse", "continue")
 
         # Generate appropriate response
         if output_audio:
