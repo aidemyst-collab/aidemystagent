@@ -3010,6 +3010,25 @@ except Exception as e:
         # Build graph from config
         graph = self.build_graph_from_config(agent_config)
 
+        # Extract audio data from user_input if it's a dict with audio_data (voice webhook case)
+        audio_data_from_input = None
+        audio_format_from_input = None
+        audio_input_from_input = None
+        caller_id = None
+        provider = None
+
+        if isinstance(user_input, dict) and user_input.get("audio_data"):
+            audio_data_from_input = user_input.get("audio_data")
+            audio_format_from_input = user_input.get("audio_format", "mp3")
+            caller_id = user_input.get("caller_id")
+            provider = user_input.get("provider", "twilio")
+            audio_input_from_input = {
+                "audio_data": audio_data_from_input,
+                "audio_format": audio_format_from_input,
+                "source_provider": provider,
+            }
+            logger.info(f"Extracted audio data from user_input: format={audio_format_from_input}, provider={provider}")
+
         # Initialize state
         initial_state: AgentState = {
             "messages": [],  # Will be populated by INPUT node
@@ -3031,9 +3050,11 @@ except Exception as e:
             "memory_context": None,
             "organization_id": str(organization_id) if organization_id else None,
             "workflow_id": str(workflow_id) if workflow_id else None,
-            "audio_input": None,  # Will be populated by INPUT node for audio mode
-            "audio_data": None,  # Will be populated by TTS if configured
-            "audio_format": None,
+            "audio_input": audio_input_from_input,  # Populated from user_input for voice webhooks
+            "audio_data": audio_data_from_input,  # Populated from user_input for voice webhooks
+            "audio_format": audio_format_from_input,
+            "caller_id": caller_id,  # For voice webhooks
+            "provider": provider,  # Voice provider (twilio/etisalat)
         }
 
         # Execute graph with error handling to capture partial execution trace
