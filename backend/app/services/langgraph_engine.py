@@ -350,13 +350,15 @@ class LangGraphEngine:
 
             workflow.add_edge(source, target)
 
-        # Set entry point (find INPUT node)
-        input_node = next((n for n in nodes if n.get("data", {}).get("type") == "INPUT"), None)
+        # Set entry point (find INPUT or VOICE_INPUT node)
+        entry_types = {"INPUT", "VOICE_INPUT"}
+        input_node = next((n for n in nodes if n.get("data", {}).get("type") in entry_types), None)
         if input_node:
             workflow.set_entry_point(input_node["id"])
 
-        # Find output node and connect to END
-        output_node = next((n for n in nodes if n.get("data", {}).get("type") == "OUTPUT"), None)
+        # Find output node and connect to END (OUTPUT or VOICE_OUTPUT)
+        exit_types = {"OUTPUT", "VOICE_OUTPUT"}
+        output_node = next((n for n in nodes if n.get("data", {}).get("type") in exit_types), None)
         if output_node:
             workflow.add_edge(output_node["id"], END)
 
