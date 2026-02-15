@@ -79,8 +79,8 @@ router = APIRouter()
 # Session TTL in seconds (10 minutes)
 VOICE_SESSION_TTL = 600
 
-# Voice job TTL in seconds (5 minutes)
-VOICE_JOB_TTL = 300
+# Voice job TTL in seconds (10 minutes - same as session)
+VOICE_JOB_TTL = 600
 
 # Max status check iterations before giving up
 MAX_STATUS_CHECKS = 30
@@ -522,20 +522,15 @@ async def handle_recording_complete(
         # Parse recording data
         recording_data = provider.parse_recording_complete(request_data)
 
-        # Get session data from Redis
+        # Get session data from Redis (optional - only used for turn count)
         redis = await get_redis()
         session_key = f"voice_session:{session_id}"
         session_raw = await redis.get(session_key)
 
         if not session_raw:
-            logger.warning(f"Session not found: {session_id}")
-            response = provider.generate_hangup_response(
-                goodbye_message="Session expired. Please call again.",
-            )
-            return Response(
-                content=response.content,
-                media_type=response.content_type,
-            )
+            # Session not found - log warning but continue processing
+            # Session is only used for turn counting, not required for processing
+            logger.warning(f"Session not found (continuing anyway): {session_id}")
 
         # Find VOICE_OUTPUT node config
         nodes = deployment.agent.config.get("nodes", [])
@@ -566,7 +561,7 @@ async def handle_recording_complete(
         # Note: We use asyncio.create_task instead of BackgroundTasks
         # because BackgroundTasks runs after the response, but we need
         # the task to start immediately
-        asyncio.create_task(
+        task = asyncio.create_task(
             process_voice_workflow_background(
                 job_id=job_id,
                 deployment_id=deployment_id,
@@ -580,6 +575,15 @@ async def handle_recording_complete(
                 voice_output_config=voice_output_config,
             )
         )
+
+        # Add callback to log any unhandled exceptions from the background task
+        def handle_task_exception(t):
+            if t.cancelled():
+                logger.warning(f"Background task {job_id} was cancelled")
+            elif t.exception():
+                logger.exception(f"Background task {job_id} failed with exception: {t.exception()}")
+
+        task.add_done_callback(handle_task_exception)
 
         logger.info(
             f"Recording received, started async processing: "
