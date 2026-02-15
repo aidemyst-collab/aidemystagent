@@ -597,12 +597,12 @@ async def handle_recording_complete(
             f"?api_key={api_key}&amp;session_id={session_id}&amp;deployment_id={deployment_id}&amp;check=1"
         )
 
-        # Generate TwiML that says "please wait" and redirects to status check
+        # Generate TwiML with silent pause and redirect to status check
         # Note: URL is already XML-escaped with &amp; for & characters
+        # Using silent pause instead of verbal message for better UX
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="Polly.Joanna">Please wait while I process your request.</Say>
-    <Pause length="2"/>
+    <Pause length="3"/>
     <Redirect>{status_url}</Redirect>
 </Response>'''
 
@@ -676,24 +676,16 @@ async def check_voice_job_status(
 </Response>'''
                 return Response(content=twiml, media_type="application/xml")
 
-            # Return another redirect with pause
+            # Return another redirect with silent pause
+            # Using silent pauses instead of verbal messages for better UX
             base_url = get_original_base_url(request)
             status_url = (
                 f"{base_url}api/v1/voice/webhook/status/{job_id}"
                 f"?api_key={api_key}&amp;session_id={session_id}&amp;deployment_id={deployment_id}&amp;check={check + 1}"
             )
 
-            # Vary the message based on check count
-            if check <= 2:
-                message = "Still processing, please wait."
-            elif check <= 5:
-                message = "Almost there, just a moment."
-            else:
-                message = "Still working on it."
-
             twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say voice="Polly.Joanna">{message}</Say>
     <Pause length="2"/>
     <Redirect>{status_url}</Redirect>
 </Response>'''

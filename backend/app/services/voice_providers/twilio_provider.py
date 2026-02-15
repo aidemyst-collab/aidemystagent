@@ -51,7 +51,7 @@ class TwilioProvider(VoiceProvider):
         language: str = "en-US",
         max_duration: int = 60,
         play_beep: bool = True,
-        silence_timeout: int = 5,
+        silence_timeout: int = 10,
     ) -> VoiceResponse:
         """Generate TwiML for greeting and recording."""
         # Map language codes to Twilio voice names
@@ -59,8 +59,12 @@ class TwilioProvider(VoiceProvider):
 
         beep_attr = 'playBeep="true"' if play_beep else 'playBeep="false"'
 
+        # Add a brief prompt before recording to indicate the user should speak
+        record_prompt = "Please speak after the beep."
+
         twiml = self._twiml(
             f'<Say voice="{voice}" language="{language}">{self._escape_xml(greeting)}</Say>'
+            f'<Say voice="{voice}" language="{language}">{record_prompt}</Say>'
             f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
             f'{beep_attr} timeout="{silence_timeout}" transcribe="false"/>'
         )
@@ -78,7 +82,7 @@ class TwilioProvider(VoiceProvider):
         loop: int = 1,
         recording_callback_url: Optional[str] = None,
         max_duration: int = 60,
-        silence_timeout: int = 5,
+        silence_timeout: int = 10,
     ) -> VoiceResponse:
         """Generate TwiML to play audio."""
         content = f'<Play loop="{loop}">{self._escape_xml(audio_url)}</Play>'
@@ -88,7 +92,8 @@ class TwilioProvider(VoiceProvider):
         elif after_action == "transfer" and transfer_to:
             content += f'<Dial>{self._escape_xml(transfer_to)}</Dial>'
         elif after_action == "continue" and recording_callback_url:
-            # Add Record element to continue the conversation
+            # Add prompt and Record element to continue the conversation
+            content += '<Say voice="Polly.Joanna" language="en-US">Please speak after the beep.</Say>'
             content += (
                 f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
                 f'playBeep="true" timeout="{silence_timeout}" transcribe="false"/>'
@@ -142,7 +147,7 @@ class TwilioProvider(VoiceProvider):
         prompt: Optional[str] = None,
         language: str = "en-US",
         max_duration: int = 60,
-        silence_timeout: int = 5,
+        silence_timeout: int = 10,
     ) -> VoiceResponse:
         """Generate TwiML to continue conversation."""
         voice = self._get_voice_for_language(language)
@@ -150,6 +155,9 @@ class TwilioProvider(VoiceProvider):
 
         if prompt:
             content += f'<Say voice="{voice}" language="{language}">{self._escape_xml(prompt)}</Say>'
+
+        # Add a brief prompt before recording
+        content += f'<Say voice="{voice}" language="{language}">Please speak after the beep.</Say>'
 
         content += (
             f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
