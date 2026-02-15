@@ -30,9 +30,11 @@ class DeploymentResponse(DeploymentBase):
     """Schema for deployment response."""
     id: UUID
     agent_id: UUID
+    agent_name: Optional[str] = None
     version: str
     status: DeploymentStatus
     endpoint_url: Optional[str] = None
+    voice_webhook_url: Optional[str] = None
     api_key: Optional[str] = None
     error_message: Optional[str] = None
     deployed_by: UUID

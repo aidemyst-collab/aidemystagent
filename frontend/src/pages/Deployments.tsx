@@ -25,6 +25,7 @@ interface Deployment {
   environment: string;
   status: string;
   endpoint_url?: string;
+  voice_webhook_url?: string;
   api_key?: string;
   deployed_at?: string;
 }
@@ -214,6 +215,7 @@ export const Deployments: React.FC = () => {
                 environment={deployment.environment}
                 status={deployment.status}
                 endpointUrl={deployment.endpoint_url}
+                voiceWebhookUrl={deployment.voice_webhook_url}
                 apiKey={deployment.api_key}
                 deployedAt={deployment.deployed_at}
                 onStop={handleStop}

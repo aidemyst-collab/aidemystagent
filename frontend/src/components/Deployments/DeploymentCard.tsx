@@ -16,6 +16,7 @@ interface DeploymentCardProps {
   environment: string;
   status: string;
   endpointUrl?: string;
+  voiceWebhookUrl?: string;
   apiKey?: string;
   deployedAt?: string;
   onStop: (id: string) => void;
@@ -45,6 +46,7 @@ export const DeploymentCard: React.FC<DeploymentCardProps> = ({
   environment,
   status,
   endpointUrl,
+  voiceWebhookUrl,
   apiKey,
   deployedAt,
   onStop,
@@ -135,6 +137,23 @@ export const DeploymentCard: React.FC<DeploymentCardProps> = ({
                 onClick={() => copyToClipboard(endpointUrl)}
               />
             </Tooltip>
+          </div>
+        )}
+
+        {voiceWebhookUrl && (
+          <div>
+            <span className="text-gray-500 text-xs">Voice Webhook (Twilio):</span>
+            <div className="flex justify-between items-center bg-blue-50 p-2 rounded mt-1">
+              <span className="text-xs font-mono truncate">{voiceWebhookUrl}</span>
+              <Tooltip title="Copy Voice Webhook URL">
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={() => copyToClipboard(voiceWebhookUrl)}
+                />
+              </Tooltip>
+            </div>
           </div>
         )}
 

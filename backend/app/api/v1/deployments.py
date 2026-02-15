@@ -31,6 +31,54 @@ from app.api.deps import (
 router = APIRouter()
 
 
+def has_voice_input_node(agent_config: dict) -> bool:
+    """Check if agent has a VOICE_INPUT node."""
+    nodes = agent_config.get("nodes", [])
+    for node in nodes:
+        node_data = node.get("data", {})
+        if node.get("type") == "VOICE_INPUT" or node_data.get("type") == "VOICE_INPUT":
+            return True
+    return False
+
+
+def build_voice_webhook_url(deployment_id: str, api_key: str, base_url: str = "") -> str:
+    """Build the voice webhook URL for Twilio."""
+    if not base_url:
+        base_url = getattr(settings, 'API_BASE_URL', 'https://agentstudio365.com')
+    return f"{base_url}/api/v1/voice/webhook/incoming/{deployment_id}?api_key={api_key}"
+
+
+def deployment_to_response(deployment: Deployment, agent: Agent = None, base_url: str = "") -> dict:
+    """Convert deployment model to response dict with computed voice_webhook_url."""
+    response_data = {
+        "id": deployment.id,
+        "agent_id": deployment.agent_id,
+        "agent_name": agent.name if agent else None,
+        "version": deployment.version,
+        "environment": deployment.environment,
+        "status": deployment.status,
+        "endpoint_url": deployment.endpoint_url,
+        "api_key": deployment.api_key,
+        "error_message": deployment.error_message,
+        "deployed_by": deployment.deployed_by,
+        "deployed_at": deployment.deployed_at,
+        "created_at": deployment.created_at,
+        "updated_at": deployment.updated_at,
+        "config": deployment.config or {},
+        "voice_webhook_url": None,
+    }
+
+    # Add voice_webhook_url if agent has VOICE_INPUT node
+    if agent and has_voice_input_node(agent.config or {}):
+        response_data["voice_webhook_url"] = build_voice_webhook_url(
+            str(deployment.id),
+            deployment.api_key,
+            base_url
+        )
+
+    return response_data
+
+
 @router.post("", response_model=DeploymentResponse, status_code=status.HTTP_201_CREATED)
 async def create_deployment(
     deployment: DeploymentCreate,
@@ -107,7 +155,8 @@ async def create_deployment(
     await db.commit()
     await db.refresh(db_deployment)
 
-    return db_deployment
+    # Return with computed voice_webhook_url
+    return deployment_to_response(db_deployment, agent, base_url)
 
 
 @router.get("", response_model=DeploymentList)
@@ -124,11 +173,13 @@ async def list_deployments(
 ):
     """List all deployments with optional filters (scoped to effective organization)."""
     from sqlalchemy import or_
+    from sqlalchemy.orm import selectinload
 
     # Base query with effective organization scoping
     # Include deployments with matching org_id OR NULL org_id (legacy deployments via agent)
     query = (
         select(Deployment)
+        .options(selectinload(Deployment.agent))
         .outerjoin(Agent, Deployment.agent_id == Agent.id)
         .where(
             or_(
@@ -176,7 +227,15 @@ async def list_deployments(
     count_result = await db.execute(count_query)
     total = count_result.scalar() or 0
 
-    return DeploymentList(deployments=deployments, total=total)
+    # Get base URL for voice webhook URLs
+    base_url = getattr(settings, 'API_BASE_URL', 'https://agentstudio365.com')
+
+    # Convert to response with voice_webhook_url
+    deployment_responses = [
+        deployment_to_response(d, d.agent, base_url) for d in deployments
+    ]
+
+    return DeploymentList(deployments=deployment_responses, total=total)
 
 
 @router.get("/{deployment_id}", response_model=DeploymentResponse)
@@ -188,8 +247,12 @@ async def get_deployment(
     _: None = Depends(require_permission("deployments:read")),
 ):
     """Get a specific deployment by ID."""
+    from sqlalchemy.orm import selectinload
+
     result = await db.execute(
-        select(Deployment).where(
+        select(Deployment)
+        .options(selectinload(Deployment.agent))
+        .where(
             Deployment.id == deployment_id,
             Deployment.deleted_at.is_(None),
         )
@@ -209,7 +272,10 @@ async def get_deployment(
             detail="You don't have access to this deployment",
         )
 
-    return deployment
+    # Get base URL for voice webhook URL
+    base_url = getattr(settings, 'API_BASE_URL', 'https://agentstudio365.com')
+
+    return deployment_to_response(deployment, deployment.agent, base_url)
 
 
 @router.get("/{deployment_id}/export", response_model=DeploymentExport)
@@ -384,8 +450,12 @@ async def stop_deployment(
     _: None = Depends(require_permission("deployments:update")),
 ):
     """Stop a running deployment."""
+    from sqlalchemy.orm import selectinload
+
     result = await db.execute(
-        select(Deployment).where(
+        select(Deployment)
+        .options(selectinload(Deployment.agent))
+        .where(
             Deployment.id == deployment_id,
             Deployment.deleted_at.is_(None),
         )
@@ -415,7 +485,8 @@ async def stop_deployment(
     await db.commit()
     await db.refresh(deployment)
 
-    return deployment
+    base_url = getattr(settings, 'API_BASE_URL', 'https://agentstudio365.com')
+    return deployment_to_response(deployment, deployment.agent, base_url)
 
 
 @router.post("/{deployment_id}/restart", response_model=DeploymentResponse)
@@ -427,8 +498,12 @@ async def restart_deployment(
     _: None = Depends(require_permission("deployments:update")),
 ):
     """Restart a stopped deployment."""
+    from sqlalchemy.orm import selectinload
+
     result = await db.execute(
-        select(Deployment).where(
+        select(Deployment)
+        .options(selectinload(Deployment.agent))
+        .where(
             Deployment.id == deployment_id,
             Deployment.deleted_at.is_(None),
         )
@@ -463,7 +538,8 @@ async def restart_deployment(
     await db.commit()
     await db.refresh(deployment)
 
-    return deployment
+    base_url = getattr(settings, 'API_BASE_URL', 'https://agentstudio365.com')
+    return deployment_to_response(deployment, deployment.agent, base_url)
 
 
 # ============================================
