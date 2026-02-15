@@ -12,21 +12,24 @@ Security Features:
 
 import uuid
 import base64
+import json
+import asyncio
 import logging
 from typing import Optional
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Header
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Header, BackgroundTasks
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.core.database import get_db
+from app.core.database import get_db, AsyncSessionLocal
 from app.core.redis_client import get_redis, get_redis_binary
 from app.core.config import settings
 from app.models.deployment import Deployment
 from app.models.credential import Credential
+from app.models.agent import Agent
 from app.services.voice_providers import (
     get_voice_provider,
     VoiceProviderError,
@@ -75,6 +78,158 @@ router = APIRouter()
 
 # Session TTL in seconds (10 minutes)
 VOICE_SESSION_TTL = 600
+
+# Voice job TTL in seconds (5 minutes)
+VOICE_JOB_TTL = 300
+
+# Max status check iterations before giving up
+MAX_STATUS_CHECKS = 30
+
+# Job status constants
+JOB_STATUS_PROCESSING = "processing"
+JOB_STATUS_COMPLETE = "complete"
+JOB_STATUS_FAILED = "failed"
+
+
+async def process_voice_workflow_background(
+    job_id: str,
+    deployment_id: str,
+    agent_config: dict,
+    recording_url: str,
+    session_id: str,
+    organization_id: str,
+    agent_id: str,
+    provider_name: str,
+    credentials: dict,
+    voice_output_config: dict,
+):
+    """
+    Background task to process voice workflow.
+
+    This runs asynchronously after returning TwiML to Twilio,
+    allowing us to exceed the 15-second webhook timeout.
+    """
+    try:
+        logger.info(f"Background job {job_id}: Starting voice workflow processing")
+
+        # Get Redis client
+        redis = await get_redis()
+        redis_binary = await get_redis_binary()
+
+        # Initialize voice provider
+        provider = get_voice_provider(provider_name, credentials)
+
+        # Fetch the recording audio
+        try:
+            audio_data = await provider.fetch_recording(recording_url)
+            logger.info(f"Background job {job_id}: Fetched recording ({len(audio_data.audio_data)} bytes)")
+        except VoiceProviderError as e:
+            logger.error(f"Background job {job_id}: Failed to fetch recording: {e}")
+            await redis.setex(
+                f"voice_job:{job_id}",
+                VOICE_JOB_TTL,
+                json.dumps({
+                    "status": JOB_STATUS_FAILED,
+                    "error": "Failed to fetch recording",
+                    "error_message": "Sorry, I couldn't hear you. Please try again.",
+                })
+            )
+            return
+
+        # Execute the workflow
+        try:
+            # Create a new database session for background task
+            async with AsyncSessionLocal() as db:
+                engine = LangGraphEngine(db=db, redis_client=redis)
+
+                # Prepare input for workflow
+                user_input = {
+                    "audio_data": base64.b64encode(audio_data.audio_data).decode("utf-8"),
+                    "audio_format": audio_data.audio_format,
+                    "caller_id": session_id,
+                    "provider": provider_name,
+                }
+
+                # Execute workflow
+                logger.info(f"Background job {job_id}: Executing agent workflow")
+                result = await engine.execute_agent(
+                    agent_config=agent_config,
+                    user_input=user_input,
+                    input_mode="audio",
+                    session_id=session_id,
+                    organization_id=organization_id,
+                    workflow_id=agent_id,
+                )
+
+                logger.info(f"Background job {job_id}: Workflow execution complete")
+
+                # Get output audio or text from result
+                output_audio = result.get("output_audio") or result.get("audio_data")
+                output_text = result.get("response") or result.get("output") or ""
+
+        except Exception as e:
+            logger.exception(f"Background job {job_id}: Workflow execution failed: {e}")
+            await redis.setex(
+                f"voice_job:{job_id}",
+                VOICE_JOB_TTL,
+                json.dumps({
+                    "status": JOB_STATUS_FAILED,
+                    "error": "Workflow execution failed",
+                    "error_message": "Sorry, I encountered an error processing your request.",
+                })
+            )
+            return
+
+        # Store result
+        result_data = {
+            "status": JOB_STATUS_COMPLETE,
+            "voice_output_config": voice_output_config,
+        }
+
+        if output_audio:
+            # Store audio in binary Redis
+            audio_id = str(uuid.uuid4())
+            audio_bytes = output_audio if isinstance(output_audio, bytes) else base64.b64decode(output_audio)
+            await redis_binary.setex(
+                f"voice_audio:{audio_id}",
+                VOICE_JOB_TTL,
+                audio_bytes,
+            )
+            result_data["audio_id"] = audio_id
+            logger.info(f"Background job {job_id}: Stored audio response ({len(audio_bytes)} bytes)")
+        elif output_text:
+            result_data["text_response"] = output_text
+            logger.info(f"Background job {job_id}: Text response: {output_text[:100]}...")
+        else:
+            result_data["text_response"] = voice_output_config.get(
+                "fallbackMessage",
+                "I'm sorry, I don't have a response for that."
+            )
+
+        # Save job result
+        await redis.setex(
+            f"voice_job:{job_id}",
+            VOICE_JOB_TTL,
+            json.dumps(result_data)
+        )
+
+        logger.info(f"Background job {job_id}: Processing complete")
+
+    except Exception as e:
+        logger.exception(f"Background job {job_id}: Unexpected error: {e}")
+        try:
+            redis = await get_redis()
+            await redis.setex(
+                f"voice_job:{job_id}",
+                VOICE_JOB_TTL,
+                json.dumps({
+                    "status": JOB_STATUS_FAILED,
+                    "error": str(e),
+                    "error_message": "Sorry, something went wrong. Please try again.",
+                })
+            )
+        except Exception:
+            pass
 
 
 async def get_deployment_and_credential(
@@ -302,13 +457,21 @@ async def handle_recording_complete(
     request: Request,
     api_key: str,
     session_id: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Handle recording complete webhook.
 
     This endpoint is called when the caller finishes speaking.
-    It fetches the recording, runs the workflow, and returns the response.
+    It starts async processing and returns immediately with a redirect
+    to the status check endpoint.
+
+    Async Pattern:
+    1. Store job data in Redis
+    2. Start background task for processing
+    3. Return TwiML with "please wait" and redirect to status endpoint
+    4. Status endpoint returns result when ready, or another redirect if still processing
 
     Security layers (same as incoming call):
     1. API Key validation (via query parameter)
@@ -359,21 +522,6 @@ async def handle_recording_complete(
         # Parse recording data
         recording_data = provider.parse_recording_complete(request_data)
 
-        # Fetch the recording audio
-        try:
-            audio_data = await provider.fetch_recording(recording_data["recording_url"])
-        except VoiceProviderError as e:
-            logger.error(f"Failed to fetch recording: {e}")
-            # Return error message to caller
-            response = provider.generate_text_response(
-                text="Sorry, I couldn't hear you. Please try again.",
-                after_action="hangup",
-            )
-            return Response(
-                content=response.content,
-                media_type=response.content_type,
-            )
-
         # Get session data from Redis
         redis = await get_redis()
         session_key = f"voice_session:{session_id}"
@@ -389,113 +537,73 @@ async def handle_recording_complete(
                 media_type=response.content_type,
             )
 
-        # Execute the workflow with audio input
-        try:
-            engine = LangGraphEngine(db=db, redis_client=await get_redis())
-
-            # Prepare input for workflow
-            user_input = {
-                "audio_data": base64.b64encode(audio_data.audio_data).decode("utf-8"),
-                "audio_format": audio_data.audio_format,
-                "caller_id": recording_data.get("call_sid", ""),
-                "provider": provider_name,
-            }
-
-            # Execute workflow
-            result = await engine.execute_agent(
-                agent_config=deployment.agent.config,
-                user_input=user_input,
-                input_mode="audio",
-                session_id=session_id,
-                organization_id=str(deployment.organization_id),
-                workflow_id=str(deployment.agent_id),
-            )
-
-            # Get output audio or text from result
-            voice_output = result.get("voice_output", {})
-            output_audio = result.get("output_audio") or result.get("audio_data")
-
-        except Exception as e:
-            logger.exception(f"Workflow execution failed: {e}")
-            response = provider.generate_text_response(
-                text="Sorry, I encountered an error processing your request.",
-                after_action="hangup",
-            )
-            return Response(
-                content=response.content,
-                media_type=response.content_type,
-            )
-
         # Find VOICE_OUTPUT node config
         nodes = deployment.agent.config.get("nodes", [])
         voice_output_config = {}
         for node in nodes:
             node_data = node.get("data", {})
-            # Check both node.type and node.data.type for compatibility
             if node.get("type") == "VOICE_OUTPUT" or node_data.get("type") == "VOICE_OUTPUT":
                 voice_output_config = node_data.get("config", {})
                 break
 
-        # Default to "continue" for voice agents to maintain conversation
-        after_action = voice_output_config.get("afterResponse", "continue")
+        # Create job ID for async processing
+        job_id = str(uuid.uuid4())
 
-        # Generate appropriate response
-        if output_audio:
-            # Store audio temporarily and get URL (use binary redis for audio data)
-            audio_id = str(uuid.uuid4())
-            redis_binary = await get_redis_binary()
-            await redis_binary.setex(
-                f"voice_audio:{audio_id}",
-                300,  # 5 minutes TTL
-                output_audio if isinstance(output_audio, bytes) else base64.b64decode(output_audio),
-            )
-
-            base_url = get_original_base_url(request)
-            audio_url = f"{base_url}api/v1/voice/audio/{audio_id}"
-
-            if after_action == "continue":
-                # Build recording callback URL for continue action
-                recording_callback_url = (
-                    f"{base_url}api/v1/voice/webhook/recording/{deployment_id}"
-                    f"?api_key={api_key}&session_id={session_id}"
-                )
-                # Play audio then continue recording
-                response = provider.generate_audio_response(
-                    audio_url=audio_url,
-                    after_action="continue",
-                    recording_callback_url=recording_callback_url,
-                    max_duration=voice_config.get("config", {}).get("maxDuration", 60),
-                )
-            else:
-                response = provider.generate_audio_response(
-                    audio_url=audio_url,
-                    after_action=after_action,
-                    transfer_to=voice_output_config.get("transferTo"),
-                )
-        else:
-            # Fallback to text response
-            fallback_text = voice_output_config.get(
-                "fallbackMessage",
-                "I'm sorry, I don't have a response for that.",
-            )
-            response = provider.generate_text_response(
-                text=fallback_text,
-                after_action=after_action,
-            )
-
-        # Update session turn count
-        session_data = eval(session_raw)  # Safe since we wrote it
-        session_data["turn_count"] = session_data.get("turn_count", 0) + 1
-        await redis.setex(session_key, VOICE_SESSION_TTL, str(session_data))
-
-        logger.info(
-            f"Recording processed: deployment={deployment_id}, "
-            f"session={session_id}, turn={session_data['turn_count']}"
+        # Store initial job status
+        job_data = {
+            "status": JOB_STATUS_PROCESSING,
+            "deployment_id": deployment_id,
+            "session_id": session_id,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        await redis.setex(
+            f"voice_job:{job_id}",
+            VOICE_JOB_TTL,
+            json.dumps(job_data)
         )
 
+        # Start background processing task
+        # Note: We use asyncio.create_task instead of BackgroundTasks
+        # because BackgroundTasks runs after the response, but we need
+        # the task to start immediately
+        asyncio.create_task(
+            process_voice_workflow_background(
+                job_id=job_id,
+                deployment_id=deployment_id,
+                agent_config=deployment.agent.config,
+                recording_url=recording_data["recording_url"],
+                session_id=session_id,
+                organization_id=str(deployment.organization_id),
+                agent_id=str(deployment.agent_id),
+                provider_name=provider_name,
+                credentials=credential.decrypted_value,
+                voice_output_config=voice_output_config,
+            )
+        )
+
+        logger.info(
+            f"Recording received, started async processing: "
+            f"deployment={deployment_id}, session={session_id}, job={job_id}"
+        )
+
+        # Return immediately with redirect to status check endpoint
+        base_url = get_original_base_url(request)
+        status_url = (
+            f"{base_url}api/v1/voice/webhook/status/{job_id}"
+            f"?api_key={api_key}&session_id={session_id}&deployment_id={deployment_id}&check=1"
+        )
+
+        # Generate TwiML that says "please wait" and redirects to status check
+        twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">Please wait while I process your request.</Say>
+    <Pause length="2"/>
+    <Redirect>{status_url}</Redirect>
+</Response>'''
+
         return Response(
-            content=response.content,
-            media_type=response.content_type,
+            content=twiml,
+            media_type="application/xml",
         )
 
     except HTTPException:
@@ -506,6 +614,196 @@ async def handle_recording_complete(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process recording",
         )
+
+
+@router.post("/webhook/status/{job_id}")
+@router.get("/webhook/status/{job_id}")
+async def check_voice_job_status(
+    job_id: str,
+    request: Request,
+    api_key: str,
+    session_id: str,
+    deployment_id: str,
+    check: int = 1,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Check the status of an async voice processing job.
+
+    This endpoint is called via Twilio <Redirect> to check if processing is complete.
+
+    Flow:
+    - If job is complete: Return audio response TwiML
+    - If job is still processing: Return another redirect (with pause)
+    - If job failed: Return error message TwiML
+    - If max checks exceeded: Return timeout message TwiML
+    """
+    try:
+        redis = await get_redis()
+
+        # Check job status
+        job_key = f"voice_job:{job_id}"
+        job_raw = await redis.get(job_key)
+
+        if not job_raw:
+            logger.warning(f"Job not found: {job_id}")
+            twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">Sorry, your session has expired. Please try again.</Say>
+    <Hangup/>
+</Response>'''
+            return Response(content=twiml, media_type="application/xml")
+
+        job_data = json.loads(job_raw)
+        job_status = job_data.get("status", JOB_STATUS_PROCESSING)
+
+        logger.info(f"Status check for job {job_id}: status={job_status}, check={check}")
+
+        # Job is still processing
+        if job_status == JOB_STATUS_PROCESSING:
+            # Check if we've exceeded max retries
+            if check >= MAX_STATUS_CHECKS:
+                logger.warning(f"Job {job_id} exceeded max status checks ({MAX_STATUS_CHECKS})")
+                twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">Sorry, processing is taking too long. Please try again later.</Say>
+    <Hangup/>
+</Response>'''
+                return Response(content=twiml, media_type="application/xml")
+
+            # Return another redirect with pause
+            base_url = get_original_base_url(request)
+            status_url = (
+                f"{base_url}api/v1/voice/webhook/status/{job_id}"
+                f"?api_key={api_key}&session_id={session_id}&deployment_id={deployment_id}&check={check + 1}"
+            )
+
+            # Vary the message based on check count
+            if check <= 2:
+                message = "Still processing, please wait."
+            elif check <= 5:
+                message = "Almost there, just a moment."
+            else:
+                message = "Still working on it."
+
+            twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">{message}</Say>
+    <Pause length="2"/>
+    <Redirect>{status_url}</Redirect>
+</Response>'''
+            return Response(content=twiml, media_type="application/xml")
+
+        # Job failed
+        if job_status == JOB_STATUS_FAILED:
+            error_message = job_data.get("error_message", "Sorry, an error occurred.")
+            logger.warning(f"Job {job_id} failed: {job_data.get('error')}")
+            twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">{error_message}</Say>
+    <Hangup/>
+</Response>'''
+            return Response(content=twiml, media_type="application/xml")
+
+        # Job completed successfully
+        if job_status == JOB_STATUS_COMPLETE:
+            logger.info(f"Job {job_id} completed successfully")
+
+            # Get deployment for voice config
+            deployment, credential, provider_name, voice_config = await get_deployment_and_credential(
+                deployment_id, api_key, db
+            )
+
+            # Initialize provider for TwiML generation
+            provider = get_voice_provider(provider_name, credential.decrypted_value)
+
+            # Get voice output config
+            voice_output_config = job_data.get("voice_output_config", {})
+            after_action = voice_output_config.get("afterResponse", "continue")
+
+            base_url = get_original_base_url(request)
+
+            # Check if we have audio response
+            audio_id = job_data.get("audio_id")
+            if audio_id:
+                audio_url = f"{base_url}api/v1/voice/audio/{audio_id}"
+
+                if after_action == "continue":
+                    # Build recording callback URL for continue action
+                    recording_callback_url = (
+                        f"{base_url}api/v1/voice/webhook/recording/{deployment_id}"
+                        f"?api_key={api_key}&session_id={session_id}"
+                    )
+                    response = provider.generate_audio_response(
+                        audio_url=audio_url,
+                        after_action="continue",
+                        recording_callback_url=recording_callback_url,
+                        max_duration=voice_config.get("config", {}).get("maxDuration", 60),
+                    )
+                else:
+                    response = provider.generate_audio_response(
+                        audio_url=audio_url,
+                        after_action=after_action,
+                        transfer_to=voice_output_config.get("transferTo"),
+                    )
+            else:
+                # Text response fallback
+                text_response = job_data.get(
+                    "text_response",
+                    voice_output_config.get("fallbackMessage", "I'm sorry, I don't have a response for that.")
+                )
+
+                if after_action == "continue":
+                    recording_callback_url = (
+                        f"{base_url}api/v1/voice/webhook/recording/{deployment_id}"
+                        f"?api_key={api_key}&session_id={session_id}"
+                    )
+                    response = provider.generate_continue_response(
+                        recording_callback_url=recording_callback_url,
+                        prompt=text_response,
+                        max_duration=voice_config.get("config", {}).get("maxDuration", 60),
+                    )
+                else:
+                    response = provider.generate_text_response(
+                        text=text_response,
+                        after_action=after_action,
+                    )
+
+            # Update session turn count
+            session_key = f"voice_session:{session_id}"
+            session_raw = await redis.get(session_key)
+            if session_raw:
+                session_data = eval(session_raw)
+                session_data["turn_count"] = session_data.get("turn_count", 0) + 1
+                await redis.setex(session_key, VOICE_SESSION_TTL, str(session_data))
+
+            # Clean up job data
+            await redis.delete(job_key)
+
+            return Response(
+                content=response.content,
+                media_type=response.content_type,
+            )
+
+        # Unknown status
+        logger.error(f"Job {job_id} has unknown status: {job_status}")
+        twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">Sorry, an unexpected error occurred.</Say>
+    <Hangup/>
+</Response>'''
+        return Response(content=twiml, media_type="application/xml")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error checking job status: {e}")
+        twiml = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="Polly.Joanna">Sorry, an error occurred. Please try again.</Say>
+    <Hangup/>
+</Response>'''
+        return Response(content=twiml, media_type="application/xml")
 
 
 @router.get("/audio/{audio_id}")
