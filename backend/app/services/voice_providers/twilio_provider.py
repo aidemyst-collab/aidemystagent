@@ -51,6 +51,7 @@ class TwilioProvider(VoiceProvider):
         language: str = "en-US",
         max_duration: int = 60,
         play_beep: bool = True,
+        silence_timeout: int = 5,
     ) -> VoiceResponse:
         """Generate TwiML for greeting and recording."""
         # Map language codes to Twilio voice names
@@ -61,7 +62,7 @@ class TwilioProvider(VoiceProvider):
         twiml = self._twiml(
             f'<Say voice="{voice}" language="{language}">{self._escape_xml(greeting)}</Say>'
             f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
-            f'{beep_attr} timeout="3" transcribe="false"/>'
+            f'{beep_attr} timeout="{silence_timeout}" transcribe="false"/>'
         )
 
         return VoiceResponse(
@@ -77,6 +78,7 @@ class TwilioProvider(VoiceProvider):
         loop: int = 1,
         recording_callback_url: Optional[str] = None,
         max_duration: int = 60,
+        silence_timeout: int = 5,
     ) -> VoiceResponse:
         """Generate TwiML to play audio."""
         content = f'<Play loop="{loop}">{self._escape_xml(audio_url)}</Play>'
@@ -89,7 +91,7 @@ class TwilioProvider(VoiceProvider):
             # Add Record element to continue the conversation
             content += (
                 f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
-                f'playBeep="true" timeout="3" transcribe="false"/>'
+                f'playBeep="true" timeout="{silence_timeout}" transcribe="false"/>'
             )
 
         return VoiceResponse(
@@ -140,6 +142,7 @@ class TwilioProvider(VoiceProvider):
         prompt: Optional[str] = None,
         language: str = "en-US",
         max_duration: int = 60,
+        silence_timeout: int = 5,
     ) -> VoiceResponse:
         """Generate TwiML to continue conversation."""
         voice = self._get_voice_for_language(language)
@@ -150,7 +153,7 @@ class TwilioProvider(VoiceProvider):
 
         content += (
             f'<Record maxLength="{max_duration}" action="{self._escape_xml(recording_callback_url)}" '
-            f'playBeep="true" timeout="3" transcribe="false"/>'
+            f'playBeep="true" timeout="{silence_timeout}" transcribe="false"/>'
         )
 
         return VoiceResponse(
