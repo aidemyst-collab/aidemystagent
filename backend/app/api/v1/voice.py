@@ -594,10 +594,11 @@ async def handle_recording_complete(
         base_url = get_original_base_url(request)
         status_url = (
             f"{base_url}api/v1/voice/webhook/status/{job_id}"
-            f"?api_key={api_key}&session_id={session_id}&deployment_id={deployment_id}&check=1"
+            f"?api_key={api_key}&amp;session_id={session_id}&amp;deployment_id={deployment_id}&amp;check=1"
         )
 
         # Generate TwiML that says "please wait" and redirects to status check
+        # Note: URL is already XML-escaped with &amp; for & characters
         twiml = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say voice="Polly.Joanna">Please wait while I process your request.</Say>
@@ -679,7 +680,7 @@ async def check_voice_job_status(
             base_url = get_original_base_url(request)
             status_url = (
                 f"{base_url}api/v1/voice/webhook/status/{job_id}"
-                f"?api_key={api_key}&session_id={session_id}&deployment_id={deployment_id}&check={check + 1}"
+                f"?api_key={api_key}&amp;session_id={session_id}&amp;deployment_id={deployment_id}&amp;check={check + 1}"
             )
 
             # Vary the message based on check count
