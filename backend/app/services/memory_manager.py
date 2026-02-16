@@ -343,3 +343,119 @@ class MemoryManager:
             "ttl_seconds": ttl,
             "expires_at": datetime.utcnow() + timedelta(seconds=ttl) if ttl > 0 else None
         }
+
+    # ============================================
+    # Session Data Methods (for CODE node persistence)
+    # ============================================
+
+    def _build_session_data_key(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ) -> str:
+        """Build a Redis key for session data (structured data).
+
+        Format: session_data:{org_id}:{workflow_id}:{session_id}
+
+        Args:
+            session_id: Unique session identifier
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
+
+        Returns:
+            str: Redis key for session data
+        """
+        parts = ["session_data"]
+
+        if organization_id:
+            parts.append(str(organization_id))
+        else:
+            parts.append("global")
+
+        if workflow_id:
+            parts.append(str(workflow_id))
+        else:
+            parts.append("default")
+
+        parts.append(session_id)
+
+        return ":".join(parts)
+
+    async def load_session_data(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Load structured session data from Redis.
+
+        This is used by CODE nodes to access collected data across turns.
+
+        Args:
+            session_id: Unique session identifier
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
+
+        Returns:
+            Dict[str, Any]: Session data (empty dict if not found)
+        """
+        if not session_id:
+            return {}
+
+        key = self._build_session_data_key(session_id, organization_id, workflow_id)
+        data = await self.redis.get(key)
+
+        if data:
+            try:
+                return json.loads(data)
+            except json.JSONDecodeError:
+                return {}
+
+        return {}
+
+    async def save_session_data(
+        self,
+        session_id: str,
+        session_data: Dict[str, Any],
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None,
+        ttl_seconds: int = 86400  # Default 24 hours
+    ):
+        """Save structured session data to Redis.
+
+        This is used by CODE nodes to persist collected data across turns.
+
+        Args:
+            session_id: Unique session identifier
+            session_data: Dictionary of data to persist
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
+            ttl_seconds: Time-to-live in seconds (default 24 hours)
+        """
+        if not session_id:
+            return
+
+        key = self._build_session_data_key(session_id, organization_id, workflow_id)
+
+        await self.redis.setex(
+            key,
+            ttl_seconds,
+            json.dumps(session_data)
+        )
+
+    async def clear_session_data(
+        self,
+        session_id: str,
+        organization_id: Optional[str] = None,
+        workflow_id: Optional[str] = None
+    ):
+        """Clear session data.
+
+        Args:
+            session_id: Session identifier to clear
+            organization_id: Organization ID for tenant isolation
+            workflow_id: Workflow/Agent ID for workflow isolation
+        """
+        key = self._build_session_data_key(session_id, organization_id, workflow_id)
+        await self.redis.delete(key)

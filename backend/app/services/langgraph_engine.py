@@ -74,6 +74,8 @@ class AgentState(TypedDict):
     provider: Optional[str]  # Voice provider (twilio, etisalat)
     voice_output: Optional[Dict[str, Any]]  # Voice output response data
     output_audio: Optional[str]  # Base64 encoded output audio
+    # Session data (structured data persisted across turns via CODE node)
+    session_data: Optional[Dict[str, Any]]  # Collected data for multi-turn conversations
 
 
 class StructuredOutputParser:
@@ -2524,6 +2526,9 @@ class LangGraphEngine:
                 # Use entire output
                 input_data[var_name] = source_output
 
+        # Auto-inject session_data for multi-turn conversation persistence
+        input_data["session_data"] = state.get("session_data", {})
+
         # Capture input snapshot
         input_snapshot = {
             "language": language,
@@ -2553,6 +2558,28 @@ class LangGraphEngine:
             # Clean up internal fields from result
             if isinstance(result, dict):
                 result.pop("__console_logs__", None)
+
+            # Save session_data if present in result (for multi-turn persistence)
+            if isinstance(result, dict) and "session_data" in result:
+                new_session_data = result.get("session_data", {})
+                if isinstance(new_session_data, dict):
+                    # Update state with new session_data
+                    state["session_data"] = new_session_data
+
+                    # Persist to Redis
+                    if self.redis and state.get("session_id"):
+                        try:
+                            memory_manager = MemoryManager(self.redis)
+                            await memory_manager.save_session_data(
+                                session_id=state["session_id"],
+                                session_data=new_session_data,
+                                organization_id=state.get("organization_id"),
+                                workflow_id=state.get("workflow_id"),
+                                ttl_seconds=86400  # 24 hours
+                            )
+                            logger.info(f"Saved session_data for session {state['session_id']}: {list(new_session_data.keys())}")
+                        except Exception as e:
+                            logger.warning(f"Failed to save session_data: {e}")
 
             # Store node output for templating
             state["node_outputs"][node_id] = {
@@ -3029,6 +3056,22 @@ except Exception as e:
             }
             logger.info(f"Extracted audio data from user_input: format={audio_format_from_input}, provider={provider}")
 
+        # Load session_data from Redis (for CODE node persistence across turns)
+        loaded_session_data = {}
+        if self.redis and session_id:
+            try:
+                memory_manager = MemoryManager(self.redis)
+                loaded_session_data = await memory_manager.load_session_data(
+                    session_id=session_id,
+                    organization_id=str(organization_id) if organization_id else None,
+                    workflow_id=str(workflow_id) if workflow_id else None
+                )
+                if loaded_session_data:
+                    logger.info(f"Loaded session_data for session {session_id}: {list(loaded_session_data.keys())}")
+            except Exception as e:
+                logger.warning(f"Failed to load session_data: {e}")
+                loaded_session_data = {}
+
         # Initialize state
         initial_state: AgentState = {
             "messages": [],  # Will be populated by INPUT node
@@ -3055,6 +3098,7 @@ except Exception as e:
             "audio_format": audio_format_from_input,
             "caller_id": caller_id,  # For voice webhooks
             "provider": provider,  # Voice provider (twilio/etisalat)
+            "session_data": loaded_session_data,  # Loaded from Redis for CODE node persistence
         }
 
         # Execute graph with error handling to capture partial execution trace
@@ -3078,6 +3122,7 @@ except Exception as e:
                 "audio_transcript": result.get("audio_transcript"),  # Text transcript of audio
                 # Session info for multi-turn conversations
                 "session_id": session_id,  # Return session_id so caller can continue conversation
+                "session_data": result.get("session_data", {}),  # Return session_data for CODE node persistence
             }
         except Exception as e:
             # Return partial results with error information
@@ -3103,4 +3148,5 @@ except Exception as e:
                 "error": error_message,
                 # Session info even on error so caller can retry
                 "session_id": session_id,
+                "session_data": initial_state.get("session_data", {}),
             }
