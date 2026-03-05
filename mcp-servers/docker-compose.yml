@@ -1,0 +1,41 @@
+# Docker Compose for Dynamic MCP Server (local development)
+
+version: '3.8'
+
+services:
+  dynamic-mcp-server:
+    build:
+      context: ./dynamic-server
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - AGENTSTUDIO_API_URL=http://host.docker.internal:8000
+      - MCP_INTERNAL_API_KEY=${MCP_INTERNAL_API_KEY:-dev-internal-key}
+      - HOST=0.0.0.0
+      - PORT=3000
+      - DEBUG=true
+      - REDIS_URL=redis://redis:6379/0
+      - TOOL_REFRESH_INTERVAL=30
+    depends_on:
+      - redis
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  redis-data:

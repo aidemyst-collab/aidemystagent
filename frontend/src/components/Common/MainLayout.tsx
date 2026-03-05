@@ -10,6 +10,7 @@ import {
   SettingOutlined,
   FolderOutlined,
   CloudOutlined,
+  CloudServerOutlined,
   BarChartOutlined,
   CrownOutlined,
   TeamOutlined,
@@ -128,6 +129,18 @@ export const MainLayout = () => {
       icon: <ToolOutlined />,
       label: 'Tools',
       onClick: () => navigate('/tools'),
+    },
+    {
+      key: '/mcp-servers',
+      icon: <CloudServerOutlined />,
+      label: 'MCP Servers',
+      onClick: () => navigate('/mcp-servers'),
+    },
+    {
+      key: '/mcp-tools',
+      icon: <ToolOutlined />,
+      label: 'MCP Tools',
+      onClick: () => navigate('/mcp-tools'),
     },
     {
       key: '/credentials',

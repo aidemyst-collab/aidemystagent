@@ -9,6 +9,8 @@ import { Agents } from './pages/Agents';
 import { WorkflowBuilder } from './pages/WorkflowBuilder';
 import { AgentTest } from './pages/AgentTest';
 import { Tools } from './pages/Tools';
+import { MCPServers } from './pages/MCPServers';
+import { DynamicMCPTools } from './pages/DynamicMCPTools';
 import { Credentials } from './pages/Credentials';
 import { Templates } from './pages/Templates';
 import { Deployments } from './pages/Deployments';
@@ -74,6 +76,8 @@ function App() {
                 <Route path="agents/:id/edit" element={<WorkflowBuilder />} />
                 <Route path="agents/:id/test" element={<AgentTest />} />
                 <Route path="tools" element={<Tools />} />
+                <Route path="mcp-servers" element={<MCPServers />} />
+                <Route path="mcp-tools" element={<DynamicMCPTools />} />
                 <Route path="credentials" element={<Credentials />} />
                 <Route path="templates" element={<Templates />} />
                 <Route path="deployments" element={<Deployments />} />

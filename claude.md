@@ -52,6 +52,9 @@ This document provides comprehensive context for Claude Code and AI assistants w
 - **Reverse Proxy**: Nginx
 - **Logging**: Python logging with rotation
 - **Environment**: .env files
+- **Source Control**: GitHub
+- **Cloud Platform**: Microsoft Azure
+- **CDN**: Azure Front Door
 
 ## Architecture
 
@@ -638,6 +641,9 @@ npm run test:coverage
 8. ✅ Backup strategy implemented
 9. ⏳ Rate limiting enabled
 10. ✅ Error logging active
+11. ✅ GitHub check-in validated
+12. ✅ Azure deployment completed
+13. ✅ Production endpoints validated
 
 ### Docker Deployment
 
@@ -664,6 +670,107 @@ See `DEPLOYMENT.md` for detailed production setup including:
 - Redis configuration
 - Monitoring and logging
 - Scaling strategies
+
+## CI/CD & Azure Deployment
+
+### GitHub Repository
+
+- **Repository**: GitHub (private)
+- **Main Branch**: `development`
+- **Branch Strategy**: Feature branches merged to `development`
+
+### Git Workflow
+
+```bash
+# Check current status
+git status
+
+# Stage changes
+git add .
+
+# Commit with descriptive message
+git commit -m "feat: description of changes"
+
+# Push to remote
+git push origin development
+```
+
+### Commit Message Convention
+
+Follow conventional commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code refactoring
+- `chore:` - Maintenance tasks
+
+### Azure Deployment
+
+The application is deployed and validated on Microsoft Azure:
+
+#### Azure Resources
+
+| Resource | Service | Status |
+|----------|---------|--------|
+| **Frontend** | Azure Static Web Apps / App Service | ✅ Deployed |
+| **Backend** | Azure App Service (Container) | ✅ Deployed |
+| **Database** | Azure Database for PostgreSQL | ✅ Configured |
+| **Cache** | Azure Cache for Redis | ✅ Configured |
+| **CDN** | Azure Front Door | ✅ Active |
+
+#### Production URLs
+
+- **Frontend**: `https://agentstudio365.com`
+- **API**: `https://agentstudio365.com/api/v1`
+- **CDN Endpoint**: `https://agentstudio-d4f3fbfnc0ejhghq.z02.azurefd.net`
+
+#### Deployment Process
+
+1. **Code Check-in**: Push changes to `development` branch on GitHub
+2. **Build**: Azure DevOps / GitHub Actions triggers build pipeline
+3. **Deploy**: Automatic deployment to Azure App Services
+4. **Validate**: Health checks confirm successful deployment
+
+#### Validation Status
+
+| Component | Validation | Status |
+|-----------|------------|--------|
+| Frontend Build | npm run build | ✅ Passed |
+| Backend Startup | uvicorn health check | ✅ Passed |
+| Database Connection | PostgreSQL connectivity | ✅ Passed |
+| Redis Connection | Cache connectivity | ✅ Passed |
+| API Endpoints | Endpoint health checks | ✅ Passed |
+| SSL/TLS | Certificate validation | ✅ Passed |
+| CDN Routing | Front Door routing | ✅ Passed |
+
+#### Environment Configuration (Azure)
+
+Azure App Service environment variables are configured via:
+- Azure Portal > App Service > Configuration > Application settings
+- Key Vault references for sensitive values (API keys, secrets)
+
+```
+# Required Azure App Settings
+DATABASE_URL=postgresql+asyncpg://...@azure-postgres:5432/agentstudio
+REDIS_URL=redis://...@azure-redis:6380?ssl=true
+SECRET_KEY=(Key Vault Reference)
+OPENAI_API_KEY=(Key Vault Reference)
+ANTHROPIC_API_KEY=(Key Vault Reference)
+```
+
+#### Monitoring & Logs
+
+- **Application Insights**: Performance monitoring and error tracking
+- **Log Analytics**: Centralized logging
+- **Azure Monitor**: Alerts and dashboards
+
+```bash
+# View logs via Azure CLI
+az webapp log tail --name agentstudio-backend --resource-group agentstudio-rg
+
+# View deployment status
+az webapp deployment list --name agentstudio-backend --resource-group agentstudio-rg
+```
 
 ## Known Issues & Limitations
 
@@ -753,6 +860,7 @@ For issues, questions, or contributions:
 
 ---
 
-**Last Updated**: 2025-12-06
-**Project Status**: 90% Complete - Ready for Beta Testing
+**Last Updated**: 2026-02-20
+**Project Status**: 90% Complete - Deployed & Validated on Azure
+**Deployment**: GitHub → Azure (Validated)
 **Next Phase**: Testing, Security Audit, Performance Optimization

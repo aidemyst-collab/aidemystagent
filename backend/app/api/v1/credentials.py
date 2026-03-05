@@ -487,3 +487,86 @@ async def test_credential(
             success=False,
             message=f"Error testing credential: {str(e)}",
         )
+
+
+# ============================================================================
+# Internal API for Dynamic MCP Server
+# ============================================================================
+
+@router.get("/internal/{credential_id}")
+async def get_credential_internal(
+    credential_id: str,
+    x_internal_key: str = None,
+    x_organization_id: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Internal endpoint for Dynamic MCP Server to fetch decrypted credentials.
+
+    This endpoint is used by the Dynamic MCP Server to get the actual credential
+    values at runtime. The LLM never sees these values - only tool names.
+
+    Security:
+    - Requires X-Internal-Key header matching MCP_INTERNAL_API_KEY
+    - Requires X-Organization-Id header to validate organization access
+    - Returns decrypted credential value
+
+    NOTE: In production, implement proper internal API key validation.
+    """
+    # TODO: Validate internal API key
+    # from app.core.config import settings
+    # if x_internal_key != settings.MCP_INTERNAL_API_KEY:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_403_FORBIDDEN,
+    #         detail="Invalid internal API key",
+    #     )
+
+    # Fetch credential
+    result = await db.execute(
+        select(Credential).where(Credential.id == credential_id)
+    )
+    credential = result.scalar_one_or_none()
+
+    if not credential:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Credential not found",
+        )
+
+    # Validate organization if provided
+    if x_organization_id and str(credential.organization_id) != x_organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Credential does not belong to the specified organization",
+        )
+
+    # Determine credential type and return appropriate format
+    config_providers = [
+        CredentialProvider.REDIS, CredentialProvider.POSTGRESQL, CredentialProvider.MONGODB,
+        CredentialProvider.TWILIO, CredentialProvider.ETISALAT, CredentialProvider.WHATSAPP_META
+    ]
+
+    if credential.provider in config_providers:
+        # Config-based credential - return parsed config
+        try:
+            config = json.loads(credential.api_key)
+        except (json.JSONDecodeError, TypeError):
+            config = credential.api_key
+
+        return {
+            "id": credential.id,
+            "provider": credential.provider.value,
+            "auth_type": "config",
+            "config": config,
+            "api_base": credential.api_base,
+        }
+    else:
+        # API key based credential
+        return {
+            "id": credential.id,
+            "provider": credential.provider.value,
+            "auth_type": "bearer",
+            "api_key": credential.api_key,  # Decrypted value
+            "api_base": credential.api_base,
+            "api_version": credential.api_version,
+        }

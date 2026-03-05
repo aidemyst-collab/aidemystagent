@@ -65,6 +65,8 @@ class Credential(Base):
     # Relationships
     user = relationship("User", back_populates="credentials")
     organization = relationship("Organization", back_populates="credentials")
+    mcp_servers = relationship("MCPServer", back_populates="credential")
+    dynamic_mcp_tools = relationship("DynamicMCPTool", back_populates="credential")
 
     @property
     def decrypted_value(self):

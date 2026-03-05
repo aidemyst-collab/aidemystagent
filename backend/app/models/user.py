@@ -80,6 +80,8 @@ class Organization(Base):
     invitations = relationship("Invitation", back_populates="organization")
     audit_logs = relationship("AuditLog", back_populates="organization")
     usage_records = relationship("OrganizationUsage", back_populates="organization")
+    mcp_servers = relationship("MCPServer", back_populates="organization")
+    dynamic_mcp_tools = relationship("DynamicMCPTool", back_populates="organization")
 
     def __repr__(self):
         return f"<Organization(name={self.name}, slug={self.slug})>"
@@ -132,6 +134,8 @@ class User(Base):
     user_roles = relationship("UserRole", back_populates="user", foreign_keys="UserRole.user_id")
     sent_invitations = relationship("Invitation", back_populates="inviter", foreign_keys="Invitation.invited_by")
     audit_logs = relationship("AuditLog", back_populates="user")
+    mcp_servers = relationship("MCPServer", back_populates="creator")
+    dynamic_mcp_tools = relationship("DynamicMCPTool", back_populates="creator")
 
     def __repr__(self):
         return f"<User(email={self.email}, org={self.organization_id})>"

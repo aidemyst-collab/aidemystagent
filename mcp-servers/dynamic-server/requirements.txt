@@ -1,0 +1,16 @@
+# Dynamic MCP Server Dependencies
+
+# FastMCP server framework
+fastmcp<3
+
+# HTTP client for API calls
+httpx>=0.25.0
+
+# Settings management
+pydantic-settings>=2.0.0
+
+# Redis for token caching (optional)
+redis>=5.0.0
+
+# Logging
+python-json-logger>=2.0.0
