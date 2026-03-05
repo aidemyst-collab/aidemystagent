@@ -1,5 +1,5 @@
 # Azure Container Apps Deployment Pipeline
-# Last updated: 2026-01-17 - Initial Azure deployment
+# Last updated: 2026-03-05 - Added Dynamic MCP Server deployment
 name: Deploy to Azure
 
 on:
@@ -15,12 +15,18 @@ on:
         options:
           - staging
           - production
+      deploy_mcp_server:
+        description: 'Deploy Dynamic MCP Server'
+        required: false
+        default: false
+        type: boolean
 
 env:
   AZURE_RESOURCE_GROUP: agentstudio-rg
   ACR_NAME: agentstudioacr
   BACKEND_APP_NAME: agentstudio-backend
   FRONTEND_APP_NAME: agentstudio-frontend
+  MCP_SERVER_APP_NAME: agentstudio-mcp-server
 
 jobs:
   # Build and push Backend
@@ -104,6 +110,59 @@ jobs:
           build-args: |
             VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}
 
+  # Build and push Dynamic MCP Server
+  build-mcp-server:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.deploy_mcp_server == 'true' || github.event_name == 'push' }}
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if MCP server exists
+        id: check_mcp
+        run: |
+          if [ -d "mcp-servers/dynamic-server" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check_mcp.outputs.exists == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Azure Container Registry
+        if: steps.check_mcp.outputs.exists == 'true'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        if: steps.check_mcp.outputs.exists == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/dynamic-mcp-server
+          tags: |
+            type=sha,prefix=
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push MCP Server image
+        if: steps.check_mcp.outputs.exists == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp-servers/dynamic-server
+          file: ./mcp-servers/dynamic-server/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
   # Deploy to Azure Container Apps
   deploy:
     runs-on: ubuntu-latest
@@ -128,7 +187,10 @@ jobs:
             --set-env-vars \
               "SECRET_KEY=${{ secrets.SECRET_KEY }}" \
               "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
-              "REDIS_URL=${{ secrets.REDIS_URL }}"
+              "REDIS_URL=${{ secrets.REDIS_URL }}" \
+              "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
+              "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" \
+              "MCP_INTERNAL_API_KEY=${{ secrets.MCP_INTERNAL_API_KEY }}"
 
       - name: Deploy Frontend to Container Apps
         uses: azure/container-apps-deploy-action@v1
@@ -139,11 +201,13 @@ jobs:
 
       - name: Health Check - Backend
         run: |
-          sleep 30
+          echo "Waiting for backend container to start..."
+          sleep 45
           BACKEND_URL=$(az containerapp show \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ env.BACKEND_APP_NAME }} \
             --query properties.configuration.ingress.fqdn -o tsv)
+          echo "Checking backend health at https://$BACKEND_URL/health"
           curl -f https://$BACKEND_URL/health || echo "Health check pending..."
 
       - name: Health Check - Frontend
@@ -152,23 +216,130 @@ jobs:
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --name ${{ env.FRONTEND_APP_NAME }} \
             --query properties.configuration.ingress.fqdn -o tsv)
+          echo "Checking frontend health at https://$FRONTEND_URL/health"
           curl -f https://$FRONTEND_URL/health || echo "Health check pending..."
+
+  # Deploy Dynamic MCP Server (optional)
+  deploy-mcp-server:
+    runs-on: ubuntu-latest
+    needs: [build-mcp-server, deploy]
+    if: ${{ github.event.inputs.deploy_mcp_server == 'true' || (github.event_name == 'push' && always()) }}
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'staging') }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check if MCP server exists
+        id: check_mcp
+        run: |
+          if [ -d "mcp-servers/dynamic-server" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Azure Login
+        if: steps.check_mcp.outputs.exists == 'true'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Check if MCP Server Container App exists
+        if: steps.check_mcp.outputs.exists == 'true'
+        id: check_app
+        run: |
+          if az containerapp show --name ${{ env.MCP_SERVER_APP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} &>/dev/null; then
+            echo "app_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "app_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create MCP Server Container App (if not exists)
+        if: steps.check_mcp.outputs.exists == 'true' && steps.check_app.outputs.app_exists == 'false'
+        run: |
+          # Get the Container Apps environment name
+          ENV_NAME=$(az containerapp env list --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query "[0].name" -o tsv)
+
+          az containerapp create \
+            --name ${{ env.MCP_SERVER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --environment $ENV_NAME \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/dynamic-mcp-server:development \
+            --target-port 3000 \
+            --ingress internal \
+            --min-replicas 1 \
+            --max-replicas 3 \
+            --cpu 0.5 \
+            --memory 1Gi \
+            --registry-server ${{ secrets.ACR_LOGIN_SERVER }} \
+            --registry-username ${{ secrets.ACR_USERNAME }} \
+            --registry-password ${{ secrets.ACR_PASSWORD }} \
+            --env-vars \
+              "AGENTSTUDIO_API_URL=${{ secrets.API_BASE_URL }}" \
+              "MCP_INTERNAL_API_KEY=${{ secrets.MCP_INTERNAL_API_KEY }}" \
+              "REDIS_URL=${{ secrets.REDIS_URL }}" \
+              "DEBUG=false"
+
+      - name: Update MCP Server Container App (if exists)
+        if: steps.check_mcp.outputs.exists == 'true' && steps.check_app.outputs.app_exists == 'true'
+        run: |
+          az containerapp update \
+            --name ${{ env.MCP_SERVER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ secrets.ACR_LOGIN_SERVER }}/dynamic-mcp-server:development
+
+      - name: Health Check - MCP Server
+        if: steps.check_mcp.outputs.exists == 'true'
+        run: |
+          echo "Waiting for MCP server to start..."
+          sleep 30
+          MCP_URL=$(az containerapp show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.MCP_SERVER_APP_NAME }} \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          echo "MCP Server deployed at: https://$MCP_URL"
 
   # Notify on completion
   # Note: Database migrations now run automatically at container startup via start.sh
   notify:
     runs-on: ubuntu-latest
-    needs: deploy
+    needs: [deploy, deploy-mcp-server]
     if: always()
 
     steps:
       - name: Deployment Status
         run: |
+          echo "========================================="
+          echo "        DEPLOYMENT STATUS REPORT        "
+          echo "========================================="
+          echo ""
+
+          # Backend & Frontend status
           if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "✅ Deployment successful!"
-            echo "Backend: https://${{ env.BACKEND_APP_NAME }}.azurecontainerapps.io"
-            echo "Frontend: https://${{ env.FRONTEND_APP_NAME }}.azurecontainerapps.io"
+            echo "✅ Backend & Frontend: Deployed successfully"
+            echo "   Backend URL:  https://${{ env.BACKEND_APP_NAME }}.azurecontainerapps.io"
+            echo "   Frontend URL: https://${{ env.FRONTEND_APP_NAME }}.azurecontainerapps.io"
           else
-            echo "❌ Deployment failed!"
+            echo "❌ Backend & Frontend: Deployment FAILED"
+          fi
+
+          echo ""
+
+          # MCP Server status
+          if [ "${{ needs.deploy-mcp-server.result }}" == "success" ]; then
+            echo "✅ MCP Server: Deployed successfully"
+            echo "   MCP Server URL: https://${{ env.MCP_SERVER_APP_NAME }}.internal.azurecontainerapps.io"
+          elif [ "${{ needs.deploy-mcp-server.result }}" == "skipped" ]; then
+            echo "⏭️  MCP Server: Skipped (not requested or directory not found)"
+          else
+            echo "❌ MCP Server: Deployment FAILED"
+          fi
+
+          echo ""
+          echo "========================================="
+
+          # Exit with error if main deployment failed
+          if [ "${{ needs.deploy.result }}" != "success" ]; then
             exit 1
           fi
