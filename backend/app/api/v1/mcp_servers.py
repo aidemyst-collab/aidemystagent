@@ -10,6 +10,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.models.mcp_server import MCPServer, MCPServerStatus
+from app.models.tool import Tool, ToolType, ToolVisibility, ToolStatus
 from app.models.user import User
 from app.schemas.mcp_server import (
     MCPServerCreate,
@@ -23,6 +24,9 @@ from app.schemas.mcp_server import (
     MCPToolSchema,
     MCPResourceSchema,
     MCPPromptSchema,
+    MCPToolImportRequest,
+    MCPToolImportResponse,
+    ImportedToolInfo,
 )
 from app.api.deps import (
     get_current_active_user,
@@ -401,4 +405,111 @@ async def get_mcp_server_health(
         status=server.status,
         last_check=server.last_health_check or server.created_at,
         error=server.last_error,
+    )
+
+
+@router.post("/{server_id}/import-tools", response_model=MCPToolImportResponse)
+async def import_mcp_tools(
+    server_id: UUID,
+    request: MCPToolImportRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
+    _: None = Depends(require_permission("tools:create")),
+):
+    """
+    Import discovered tools from an MCP server as workflow tools.
+
+    This creates Tool records with type='mcp' that can be used in workflows.
+    The tools will reference the MCP server and use mcp_service for execution.
+    """
+    # Get the MCP server
+    result = await db.execute(
+        select(MCPServer).where(MCPServer.id == server_id)
+    )
+    server = result.scalar_one_or_none()
+
+    if not server:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="MCP server not found",
+        )
+
+    # Check access permissions
+    if server.organization_id != effective_org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this MCP server",
+        )
+
+    # Check if server has discovered tools
+    if not server.discovered_tools:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No discovered tools available. Run discovery first.",
+        )
+
+    # Build a map of discovered tools by name
+    discovered_map = {tool["name"]: tool for tool in server.discovered_tools}
+
+    imported_tools = []
+    skipped_tools = []
+
+    for tool_name in request.tool_names:
+        # Check if tool exists in discovered tools
+        if tool_name not in discovered_map:
+            skipped_tools.append(f"{tool_name} (not found in discovered tools)")
+            continue
+
+        discovered_tool = discovered_map[tool_name]
+
+        # Check if a tool with this name already exists for this org
+        existing = await db.execute(
+            select(Tool).where(
+                Tool.organization_id == effective_org_id,
+                Tool.name == tool_name,
+            )
+        )
+        if existing.scalar_one_or_none():
+            skipped_tools.append(f"{tool_name} (already exists)")
+            continue
+
+        # Create the Tool record
+        tool_config = {
+            "mcp_server_id": str(server.id),
+            "mcp_server_url": server.server_url,
+            "mcp_server_name": server.name,
+            "mcp_type": "tool",
+            "resource_uri": tool_name,
+            "input_schema": discovered_tool.get("input_schema", {}),
+        }
+
+        new_tool = Tool(
+            organization_id=effective_org_id,
+            creator_id=current_user.id,
+            name=tool_name,
+            description=discovered_tool.get("description") or f"MCP tool from {server.name}",
+            type=ToolType.MCP,
+            config=tool_config,
+            visibility=ToolVisibility.ORGANIZATION,
+            status=ToolStatus.ACTIVE,
+        )
+
+        db.add(new_tool)
+        await db.flush()  # Get the ID
+
+        imported_tools.append(ImportedToolInfo(
+            id=new_tool.id,
+            name=new_tool.name,
+            description=new_tool.description,
+        ))
+
+    await db.commit()
+
+    return MCPToolImportResponse(
+        success=True,
+        imported_count=len(imported_tools),
+        skipped_count=len(skipped_tools),
+        imported_tools=imported_tools,
+        skipped_tools=skipped_tools,
     )

@@ -144,3 +144,25 @@ class MCPServerHealthResponse(BaseModel):
     last_check: datetime
     response_time_ms: Optional[int] = None
     error: Optional[str] = None
+
+
+class MCPToolImportRequest(BaseModel):
+    """Schema for importing discovered tools as workflow tools."""
+    tool_names: List[str] = Field(..., min_items=1, description="List of tool names to import from discovered tools")
+
+
+class ImportedToolInfo(BaseModel):
+    """Info about an imported tool."""
+    id: UUID
+    name: str
+    description: Optional[str]
+
+
+class MCPToolImportResponse(BaseModel):
+    """Schema for tool import result."""
+    success: bool
+    imported_count: int
+    skipped_count: int
+    imported_tools: List[ImportedToolInfo]
+    skipped_tools: List[str]  # Tool names that already exist or failed to import
+    error: Optional[str] = None

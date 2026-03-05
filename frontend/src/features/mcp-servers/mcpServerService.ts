@@ -89,6 +89,25 @@ export interface MCPServerHealthResponse {
   error?: string;
 }
 
+export interface MCPToolImportRequest {
+  tool_names: string[];
+}
+
+export interface ImportedToolInfo {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface MCPToolImportResponse {
+  success: boolean;
+  imported_count: number;
+  skipped_count: number;
+  imported_tools: ImportedToolInfo[];
+  skipped_tools: string[];
+  error?: string;
+}
+
 export const mcpServerService = {
   /**
    * Get all MCP servers for the organization
@@ -157,5 +176,18 @@ export const mcpServerService = {
    */
   getHealth: async (serverId: string): Promise<MCPServerHealthResponse> => {
     return apiClient.get<MCPServerHealthResponse>(`/mcp-servers/${serverId}/health`);
+  },
+
+  /**
+   * Import discovered tools as workflow tools
+   */
+  importTools: async (
+    serverId: string,
+    toolNames: string[]
+  ): Promise<MCPToolImportResponse> => {
+    return apiClient.post<MCPToolImportResponse>(
+      `/mcp-servers/${serverId}/import-tools`,
+      { tool_names: toolNames }
+    );
   },
 };
