@@ -21,7 +21,6 @@ export const Tools = () => {
   const [builtInTools, setBuiltInTools] = useState<Tool[]>([]);
   const [customTools, setCustomTools] = useState<CustomTool[]>([]);
   const [apiTools, setApiTools] = useState<CustomTool[]>([]);
-  const [mcpTools, setMcpTools] = useState<CustomTool[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTool, setSelectedTool] = useState<Tool | null>(null);
   const [testerVisible, setTesterVisible] = useState(false);
@@ -64,7 +63,6 @@ export const Tools = () => {
       // Separate tools by type
       setCustomTools(tools.filter(t => t.type === 'custom'));
       setApiTools(tools.filter(t => t.type === 'api'));
-      setMcpTools(tools.filter(t => t.type === 'mcp'));
     } catch (error) {
       console.error('Error fetching custom tools:', error);
     }
@@ -196,11 +194,6 @@ export const Tools = () => {
             key: 'api',
             label: `API Integration (${apiTools.length})`,
             children: renderToolGrid(apiTools, 'API', 'api'),
-          },
-          {
-            key: 'mcp',
-            label: `MCP Tools (${mcpTools.length})`,
-            children: renderToolGrid(mcpTools, 'MCP', 'mcp'),
           },
         ]}
       />

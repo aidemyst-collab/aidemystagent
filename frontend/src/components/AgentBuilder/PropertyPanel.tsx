@@ -6,6 +6,7 @@ import type { WorkflowNode, WorkflowEdge } from '../../types/workflow';
 import { credentialService, type Credential } from '../../features/credentials/credentialService';
 import { toolService, type Tool } from '../../features/tools/toolService';
 import { ragService, type Collection } from '../../features/rag/ragService';
+import { mcpServerService, type MCPServer } from '../../features/mcp-servers/mcpServerService';
 import { NodeInputPanel } from './NodeInputPanel';
 import { NodeOutputPanel } from './NodeOutputPanel';
 import { TemplateHelper } from './TemplateHelper';
@@ -38,6 +39,7 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
   const [selectedToolType, setSelectedToolType] = useState<string>('built-in');
   const [builtInTools, setBuiltInTools] = useState<any[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
 
   // External RAG state
   const [ragSource, setRagSource] = useState<string>('internal');
@@ -61,10 +63,11 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
   };
 
   useEffect(() => {
-    // Fetch credentials, tools, and collections when component mounts
+    // Fetch credentials, tools, collections, and MCP servers when component mounts
     fetchCredentials();
     fetchTools('built-in'); // Default to built-in tools
     fetchCollections();
+    fetchMcpServers();
   }, []);
 
   useEffect(() => {
@@ -121,6 +124,15 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
       setCollections(data.collections || []);
     } catch (error) {
       console.error('Error fetching collections:', error);
+    }
+  };
+
+  const fetchMcpServers = async () => {
+    try {
+      const data = await mcpServerService.getServers(0, 100, 'active');
+      setMcpServers(data.servers || []);
+    } catch (error) {
+      console.error('Error fetching MCP servers:', error);
     }
   };
 
@@ -530,55 +542,86 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
 
         {selectedNode.data.type === 'TOOL' && (
           <>
-            <Form.Item name={['config', 'toolType']} label="Tool Type" initialValue="built-in">
-              <Select
-                placeholder="Select tool type"
-                onChange={handleToolTypeChange}
-                options={[
-                  { label: 'Built-in Tools', value: 'built-in' },
-                  { label: 'API Integration', value: 'api' },
-                  { label: 'Custom Code', value: 'custom' },
-                  { label: 'MCP Tools', value: 'mcp' },
-                ]}
-              />
-            </Form.Item>
+            <Card size="small" title="Individual Tools" className="mb-4">
+              <Form.Item name={['config', 'toolType']} label="Tool Type" initialValue="built-in">
+                <Select
+                  placeholder="Select tool type"
+                  onChange={handleToolTypeChange}
+                  options={[
+                    { label: 'Built-in Tools', value: 'built-in' },
+                    { label: 'API Integration', value: 'api' },
+                    { label: 'Custom Code', value: 'custom' },
+                  ]}
+                />
+              </Form.Item>
 
-            <Form.Item name={['config', 'toolId']} label="Tool" rules={[{ required: true, message: 'Please select a tool' }]}>
-              <Select
-                placeholder="Select tool"
-                showSearch
-                filterOption={(input, option) =>
-                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                }
-                options={
-                  selectedToolType === 'built-in'
-                    ? builtInTools.map(tool => ({
-                        label: `${tool.name} - ${tool.description}`,
-                        value: tool.name,
-                      }))
-                    : tools.map(tool => ({
-                        label: `${tool.name} - ${tool.description}`,
-                        value: tool.id,
-                      }))
-                }
-              />
-            </Form.Item>
-
-            <Form.Item label="Parameters">
-              <TextArea
-                rows={4}
-                placeholder='{"key": "value"}'
-                defaultValue="{}"
-                onChange={(e) => {
-                  try {
-                    const params = JSON.parse(e.target.value);
-                    form.setFieldValue(['config', 'parameters'], params);
-                  } catch (err) {
-                    // Invalid JSON, don't update
+              <Form.Item name={['config', 'toolId']} label="Tool">
+                <Select
+                  placeholder="Select tool"
+                  showSearch
+                  allowClear
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
-                }}
-              />
-            </Form.Item>
+                  options={
+                    selectedToolType === 'built-in'
+                      ? builtInTools.map(tool => ({
+                          label: `${tool.name} - ${tool.description}`,
+                          value: tool.name,
+                        }))
+                      : tools.map(tool => ({
+                          label: `${tool.name} - ${tool.description}`,
+                          value: tool.id,
+                        }))
+                  }
+                />
+              </Form.Item>
+
+              <Form.Item label="Parameters">
+                <TextArea
+                  rows={3}
+                  placeholder='{"key": "value"}'
+                  defaultValue="{}"
+                  onChange={(e) => {
+                    try {
+                      const params = JSON.parse(e.target.value);
+                      form.setFieldValue(['config', 'parameters'], params);
+                    } catch (err) {
+                      // Invalid JSON, don't update
+                    }
+                  }}
+                />
+              </Form.Item>
+            </Card>
+
+            <Card size="small" title="MCP Servers" className="mb-4">
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                Select MCP servers to make all their tools available to the agent
+              </Typography.Text>
+              <Form.Item name={['config', 'mcpServerIds']} label="Connected Servers">
+                <Select
+                  mode="multiple"
+                  placeholder="Select MCP servers"
+                  allowClear
+                  options={mcpServers.map(server => ({
+                    label: (
+                      <span>
+                        {server.name}
+                        <Typography.Text type="secondary" style={{ fontSize: 11, marginLeft: 8 }}>
+                          ({server.discovered_tools?.length || 0} tools)
+                        </Typography.Text>
+                      </span>
+                    ),
+                    value: server.id,
+                  }))}
+                />
+              </Form.Item>
+              {mcpServers.length === 0 && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  No MCP servers registered. Go to MCP Servers page to add one.
+                </Typography.Text>
+              )}
+            </Card>
           </>
         )}
 

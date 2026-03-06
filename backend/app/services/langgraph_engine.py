@@ -19,6 +19,8 @@ from app.services.audio_transcription_service import AudioTranscriptionService
 from app.services.text_to_speech_service import TextToSpeechService
 from app.models.credential import Credential
 from app.models.tool import Tool
+from app.models.mcp_server import MCPServer
+from app.services.mcp_service import mcp_service
 import redis.asyncio as aioredis
 from uuid import UUID, uuid4
 
@@ -291,6 +293,48 @@ class LangGraphEngine:
                         connected["rag"] = target_node
 
         return connected
+
+    def _create_mcp_tool(self, server_url: str, tool_name: str, tool_description: str, input_schema: dict):
+        """Create a LangChain tool that calls an MCP server."""
+        from langchain_core.tools import tool as langchain_tool
+
+        # Capture variables in closure properly
+        _server_url = server_url
+        _tool_name = tool_name
+        _tool_description = tool_description
+
+        @langchain_tool
+        async def mcp_tool_func(**kwargs) -> str:
+            """Execute MCP tool via mcp_service."""
+            try:
+                result = await mcp_service.execute(
+                    mcp_type="tool",
+                    resource_uri=_tool_name,
+                    server_url=_server_url,
+                    input_data=kwargs,
+                    auth_token=None  # TODO: Get from credential if configured
+                )
+                if result.success:
+                    if isinstance(result.result, dict):
+                        # Extract content if available
+                        if "content" in result.result:
+                            content = result.result["content"]
+                            if isinstance(content, list) and len(content) > 0:
+                                texts = [item.get("text", str(item)) for item in content if isinstance(item, dict)]
+                                return "\n".join(texts) if texts else json.dumps(content)
+                        return json.dumps(result.result)
+                    return str(result.result)
+                else:
+                    return f"Error: {result.error}"
+            except Exception as e:
+                logger.error(f"MCP tool {_tool_name} error: {str(e)}")
+                return f"MCP tool error: {str(e)}"
+
+        # Set the tool name and description
+        mcp_tool_func.__name__ = _tool_name
+        mcp_tool_func.__doc__ = _tool_description
+
+        return mcp_tool_func
 
     def build_graph_from_config(self, agent_config: dict) -> StateGraph:
         """Build a LangGraph workflow from agent configuration (Hub-and-Spoke pattern)."""
@@ -872,6 +916,8 @@ class LangGraphEngine:
             if connected["tools"] and self.db:
                 for tool_node in connected["tools"]:
                     tool_config = tool_node.get("data", {}).get("config", {})
+
+                    # Handle individual tool selection
                     tool_id = tool_config.get("toolId")
                     if tool_id:
                         try:
@@ -887,6 +933,34 @@ class LangGraphEngine:
                         except Exception as e:
                             # Log error but continue with other tools
                             print(f"Error loading tool {tool_id}: {str(e)}")
+
+                    # Handle MCP servers - load all tools from selected servers
+                    mcp_server_ids = tool_config.get("mcpServerIds", [])
+                    for server_id in mcp_server_ids:
+                        try:
+                            server_uuid = UUID(server_id) if isinstance(server_id, str) else server_id
+                            mcp_server = await self.db.get(MCPServer, server_uuid)
+
+                            if mcp_server and mcp_server.discovered_tools:
+                                # Create LangChain tools for each discovered tool
+                                for tool_def in mcp_server.discovered_tools:
+                                    tool_name = tool_def.get("name")
+                                    if not tool_name:
+                                        continue
+
+                                    # Create MCP tool using ToolConverter pattern
+                                    mcp_langchain_tool = self._create_mcp_tool(
+                                        server_url=mcp_server.server_url,
+                                        tool_name=tool_name,
+                                        tool_description=tool_def.get("description", f"MCP tool: {tool_name}"),
+                                        input_schema=tool_def.get("input_schema", {})
+                                    )
+                                    langchain_tools.append(mcp_langchain_tool)
+                                    available_tools.append(f"mcp:{mcp_server.name}:{tool_name}")
+
+                                logger.info(f"Loaded {len(mcp_server.discovered_tools)} tools from MCP server: {mcp_server.name}")
+                        except Exception as e:
+                            logger.error(f"Error loading MCP server {server_id}: {str(e)}")
 
             # Query RAG node if connected
             rag_context = None

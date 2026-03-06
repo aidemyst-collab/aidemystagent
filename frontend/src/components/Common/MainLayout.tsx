@@ -24,6 +24,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RobotOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, usePermissions, useOrganizationSwitcher } from '../../features/auth/authStore';
@@ -138,8 +139,8 @@ export const MainLayout = () => {
     },
     {
       key: '/mcp-tools',
-      icon: <ToolOutlined />,
-      label: 'MCP Tools',
+      icon: <ApiOutlined />,
+      label: 'Dynamic Tools',
       onClick: () => navigate('/mcp-tools'),
     },
     {
