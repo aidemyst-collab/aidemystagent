@@ -1,206 +1,420 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Typography,
+  Card,
   Button,
+  Space,
   Table,
   Tag,
-  Space,
-  message,
-  Popconfirm,
   Tooltip,
+  message,
+  Modal,
   Switch,
+  Typography,
   Empty,
-  Card,
+  Collapse,
+  Badge,
+  Dropdown,
+  Input,
+  Spin,
   Alert,
 } from 'antd';
 import {
   PlusOutlined,
-  ReloadOutlined,
-  ApiOutlined,
   EditOutlined,
   DeleteOutlined,
+  PlayCircleOutlined,
+  ApiOutlined,
+  MoreOutlined,
+  ReloadOutlined,
+  CloudServerOutlined,
+  ToolOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  SearchOutlined,
   CodeOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { DynamicMCPToolModal } from '../components/MCPTools/DynamicMCPToolModal';
+import { MainLayout } from '../components/Common/MainLayout';
+import { DynamicMCPServerModal } from '../components/MCPTools/DynamicMCPServerModal';
 import {
-  mcpToolService,
-  type DynamicMCPTool,
-} from '../features/mcp-tools/mcpToolService';
+  DynamicMCPServer,
+  DynamicMCPTool,
+  dynamicMcpServerService,
+} from '../features/mcp-tools/dynamicMcpServerService';
+import { apiClient } from '../services/api';
 
 const { Title, Text, Paragraph } = Typography;
+const { Panel } = Collapse;
+const { confirm } = Modal;
 
-const methodColors: Record<string, string> = {
-  GET: 'green',
-  POST: 'blue',
-  PUT: 'orange',
-  PATCH: 'purple',
-  DELETE: 'red',
-};
+interface CredentialOption {
+  id: string;
+  name: string;
+}
 
-export const DynamicMCPTools = () => {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingTool, setEditingTool] = useState<DynamicMCPTool | null>(null);
+export const DynamicMCPTools: React.FC = () => {
+  const [servers, setServers] = useState<DynamicMCPServer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingServer, setEditingServer] = useState<DynamicMCPServer | undefined>();
+  const [credentials, setCredentials] = useState<CredentialOption[]>([]);
+  const [expandedServers, setExpandedServers] = useState<string[]>([]);
+  const [testingTool, setTestingTool] = useState<{
+    serverId: string;
+    toolId: string;
+    loading: boolean;
+  } | null>(null);
 
-  const queryClient = useQueryClient();
+  // Load servers and credentials
+  useEffect(() => {
+    loadServers();
+    loadCredentials();
+  }, []);
 
-  // Fetch tools
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ['dynamic-mcp-tools'],
-    queryFn: () => mcpToolService.getTools(0, 100, false), // Include inactive
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: (toolId: string) => mcpToolService.deleteTool(toolId),
-    onSuccess: () => {
-      message.success('Tool deleted successfully');
-      queryClient.invalidateQueries({ queryKey: ['dynamic-mcp-tools'] });
-    },
-    onError: (error: any) => {
-      message.error(error.message || 'Failed to delete tool');
-    },
-  });
-
-  // Toggle mutation
-  const toggleMutation = useMutation({
-    mutationFn: (toolId: string) => mcpToolService.toggleTool(toolId),
-    onSuccess: (data) => {
-      message.success(`Tool ${data.is_active ? 'activated' : 'deactivated'}`);
-      queryClient.invalidateQueries({ queryKey: ['dynamic-mcp-tools'] });
-    },
-    onError: (error: any) => {
-      message.error(error.message || 'Failed to toggle tool');
-    },
-  });
-
-  // Refresh server mutation
-  const refreshMutation = useMutation({
-    mutationFn: () => mcpToolService.refreshServer(),
-    onSuccess: () => {
-      message.success('Dynamic MCP Server notified to reload tools');
-    },
-    onError: (error: any) => {
-      message.error(error.message || 'Failed to notify server');
-    },
-  });
-
-  const handleCreateTool = () => {
-    setEditingTool(null);
-    setModalVisible(true);
+  const loadServers = async () => {
+    try {
+      setLoading(true);
+      const response = await dynamicMcpServerService.getServers();
+      setServers(response.servers);
+    } catch (error: any) {
+      console.error('Failed to load servers:', error);
+      message.error('Failed to load servers');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEditTool = (tool: DynamicMCPTool) => {
-    setEditingTool(tool);
-    setModalVisible(true);
+  const loadCredentials = async () => {
+    try {
+      const response = await apiClient.get<{ credentials: any[] }>('/credentials');
+      setCredentials(
+        response.credentials?.map((c: any) => ({ id: c.id, name: c.name })) || []
+      );
+    } catch (error) {
+      console.error('Failed to load credentials:', error);
+    }
   };
 
-  const handleDeleteTool = (toolId: string) => {
-    deleteMutation.mutate(toolId);
+  // Filter servers by search text
+  const filteredServers = servers.filter((server) => {
+    const search = searchText.toLowerCase();
+    const matchesServer =
+      server.name.toLowerCase().includes(search) ||
+      server.base_url.toLowerCase().includes(search) ||
+      (server.description?.toLowerCase().includes(search) ?? false);
+    const matchesTools = server.tools?.some(
+      (tool) =>
+        tool.name.toLowerCase().includes(search) ||
+        tool.path.toLowerCase().includes(search)
+    );
+    return matchesServer || matchesTools;
+  });
+
+  // Server actions
+  const handleCreateServer = () => {
+    setEditingServer(undefined);
+    setModalOpen(true);
   };
 
-  const handleToggleTool = (toolId: string) => {
-    toggleMutation.mutate(toolId);
+  const handleEditServer = (server: DynamicMCPServer) => {
+    setEditingServer(server);
+    setModalOpen(true);
   };
 
-  const tools = data?.tools || [];
-
-  const columns = [
-    {
-      title: 'Tool Name',
-      dataIndex: 'name',
-      key: 'name',
-      render: (name: string, record: DynamicMCPTool) => (
-        <Space>
-          <ApiOutlined style={{ color: '#6366f1' }} />
-          <Text strong>{name}</Text>
-          {!record.is_active && <Tag color="default">Inactive</Tag>}
-        </Space>
+  const handleDeleteServer = (server: DynamicMCPServer) => {
+    confirm({
+      title: 'Delete Provider',
+      content: (
+        <div>
+          <p>Are you sure you want to delete "{server.name}"?</p>
+          <p>
+            <Text type="danger">
+              This will also delete all {server.tool_count} tools in this provider.
+            </Text>
+          </p>
+        </div>
       ),
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-      width: 300,
-    },
-    {
-      title: 'Method',
-      dataIndex: 'method',
-      key: 'method',
-      width: 100,
-      render: (method: string) => (
-        <Tag color={methodColors[method] || 'default'}>{method}</Tag>
-      ),
-    },
-    {
-      title: 'Endpoint',
-      dataIndex: 'api_endpoint',
-      key: 'api_endpoint',
-      ellipsis: true,
-      width: 250,
-      render: (endpoint: string) => (
-        <Tooltip title={endpoint}>
-          <Text code className="text-xs">
-            {endpoint.length > 40 ? endpoint.substring(0, 40) + '...' : endpoint}
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await dynamicMcpServerService.deleteServer(server.id);
+          message.success('Provider deleted');
+          loadServers();
+        } catch (error: any) {
+          message.error(error?.message || 'Failed to delete provider');
+        }
+      },
+    });
+  };
+
+  const handleToggleServer = async (server: DynamicMCPServer) => {
+    try {
+      await dynamicMcpServerService.toggleServer(server.id);
+      message.success(`Provider ${server.is_active ? 'disabled' : 'enabled'}`);
+      loadServers();
+    } catch (error: any) {
+      message.error(error?.message || 'Failed to toggle provider');
+    }
+  };
+
+  // Tool actions
+  const handleToggleTool = async (serverId: string, tool: DynamicMCPTool) => {
+    try {
+      await dynamicMcpServerService.toggleTool(serverId, tool.id);
+      message.success(`Tool ${tool.is_active ? 'disabled' : 'enabled'}`);
+      loadServers();
+    } catch (error: any) {
+      message.error(error?.message || 'Failed to toggle tool');
+    }
+  };
+
+  const handleDeleteTool = (server: DynamicMCPServer, tool: DynamicMCPTool) => {
+    confirm({
+      title: 'Delete Tool',
+      content: `Are you sure you want to delete "${tool.name}"?`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          await dynamicMcpServerService.deleteTool(server.id, tool.id);
+          message.success('Tool deleted');
+          loadServers();
+        } catch (error: any) {
+          message.error(error?.message || 'Failed to delete tool');
+        }
+      },
+    });
+  };
+
+  const handleTestTool = async (server: DynamicMCPServer, tool: DynamicMCPTool) => {
+    setTestingTool({ serverId: server.id, toolId: tool.id, loading: true });
+    try {
+      const result = await dynamicMcpServerService.testTool(server.id, tool.id, {
+        arguments: {},
+      });
+      if (result.success) {
+        message.success(`Tool executed in ${result.execution_time_ms}ms`);
+        Modal.info({
+          title: 'Tool Result',
+          content: (
+            <pre style={{ maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
+              {JSON.stringify(result.result, null, 2)}
+            </pre>
+          ),
+          width: 600,
+        });
+      } else {
+        message.error(result.error || 'Tool execution failed');
+      }
+    } catch (error: any) {
+      message.error(error?.message || 'Failed to test tool');
+    } finally {
+      setTestingTool(null);
+    }
+  };
+
+  // Render tool table
+  const renderToolsTable = (server: DynamicMCPServer) => {
+    const columns = [
+      {
+        title: 'Tool Name',
+        dataIndex: 'name',
+        key: 'name',
+        render: (name: string, tool: DynamicMCPTool) => (
+          <Space>
+            <ToolOutlined />
+            <Text strong>{name}</Text>
+            {!tool.is_active && <Tag color="default">Disabled</Tag>}
+          </Space>
+        ),
+      },
+      {
+        title: 'Method',
+        dataIndex: 'method',
+        key: 'method',
+        width: 80,
+        render: (method: string) => (
+          <Tag color={method === 'GET' ? 'green' : method === 'POST' ? 'blue' : 'orange'}>
+            {method}
+          </Tag>
+        ),
+      },
+      {
+        title: 'Path',
+        dataIndex: 'path',
+        key: 'path',
+        render: (path: string) => (
+          <Text code style={{ fontSize: 12 }}>
+            {path}
           </Text>
-        </Tooltip>
-      ),
-    },
-    {
-      title: 'Parameters',
-      key: 'parameters',
-      width: 100,
-      render: (_: any, record: DynamicMCPTool) => (
-        <Tag>{record.parameters?.length || 0} params</Tag>
-      ),
-    },
-    {
-      title: 'Status',
-      key: 'status',
-      width: 100,
-      render: (_: any, record: DynamicMCPTool) => (
-        <Switch
-          checked={record.is_active}
-          onChange={() => handleToggleTool(record.id)}
-          loading={toggleMutation.isPending}
-          checkedChildren={<CheckCircleOutlined />}
-          unCheckedChildren={<CloseCircleOutlined />}
-        />
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      width: 100,
-      render: (_: any, record: DynamicMCPTool) => (
-        <Space>
-          <Tooltip title="Edit">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEditTool(record)}
-            />
-          </Tooltip>
-          <Popconfirm
-            title="Delete this tool?"
-            description="This action cannot be undone."
-            onConfirm={() => handleDeleteTool(record.id)}
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-          >
-            <Tooltip title="Delete">
-              <Button type="text" danger icon={<DeleteOutlined />} />
+        ),
+      },
+      {
+        title: 'Parameters',
+        key: 'parameters',
+        width: 100,
+        render: (_: any, tool: DynamicMCPTool) => (
+          <Tag>{tool.parameters?.length || 0} params</Tag>
+        ),
+      },
+      {
+        title: 'Active',
+        key: 'active',
+        width: 70,
+        render: (_: any, tool: DynamicMCPTool) => (
+          <Switch
+            size="small"
+            checked={tool.is_active}
+            onChange={() => handleToggleTool(server.id, tool)}
+          />
+        ),
+      },
+      {
+        title: 'Actions',
+        key: 'actions',
+        width: 120,
+        render: (_: any, tool: DynamicMCPTool) => (
+          <Space size="small">
+            <Tooltip title="Test">
+              <Button
+                type="text"
+                size="small"
+                icon={<PlayCircleOutlined />}
+                loading={
+                  testingTool?.serverId === server.id &&
+                  testingTool?.toolId === tool.id &&
+                  testingTool?.loading
+                }
+                onClick={() => handleTestTool(server, tool)}
+              />
             </Tooltip>
-          </Popconfirm>
+            <Tooltip title="Delete">
+              <Button
+                type="text"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDeleteTool(server, tool)}
+              />
+            </Tooltip>
+          </Space>
+        ),
+      },
+    ];
+
+    return (
+      <Table
+        size="small"
+        dataSource={server.tools || []}
+        columns={columns}
+        pagination={false}
+        rowKey="id"
+        locale={{ emptyText: 'No tools defined' }}
+      />
+    );
+  };
+
+  // Render server card
+  const renderServerCard = (server: DynamicMCPServer) => {
+    const isExpanded = expandedServers.includes(server.id);
+
+    const menuItems = [
+      {
+        key: 'edit',
+        icon: <EditOutlined />,
+        label: 'Edit Provider',
+        onClick: () => handleEditServer(server),
+      },
+      {
+        key: 'toggle',
+        icon: server.is_active ? <CloseCircleOutlined /> : <CheckCircleOutlined />,
+        label: server.is_active ? 'Disable Provider' : 'Enable Provider',
+        onClick: () => handleToggleServer(server),
+      },
+      {
+        type: 'divider' as const,
+      },
+      {
+        key: 'delete',
+        icon: <DeleteOutlined />,
+        label: 'Delete Provider',
+        danger: true,
+        onClick: () => handleDeleteServer(server),
+      },
+    ];
+
+    return (
+      <Card
+        key={server.id}
+        style={{ marginBottom: 16 }}
+        styles={{
+          header: {
+            backgroundColor: server.is_active ? '#f6ffed' : '#f5f5f5',
+            borderBottom: `2px solid ${server.is_active ? '#52c41a' : '#d9d9d9'}`,
+          }
+        }}
+        title={
+          <Space>
+            <CloudServerOutlined style={{ fontSize: 20 }} />
+            <span>{server.name}</span>
+            {server.is_active ? (
+              <Badge status="success" text="Active" />
+            ) : (
+              <Badge status="default" text="Inactive" />
+            )}
+          </Space>
+        }
+        extra={
+          <Space>
+            <Tag color="blue">{server.tool_count} tools</Tag>
+            <Tag>{server.active_tool_count} active</Tag>
+            <Dropdown menu={{ items: menuItems }} trigger={['click']}>
+              <Button type="text" icon={<MoreOutlined />} />
+            </Dropdown>
+          </Space>
+        }
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size="small">
+          {/* Server info */}
+          <div>
+            <Text type="secondary">Base URL:</Text>{' '}
+            <Text code>{server.base_url}</Text>
+          </div>
+          {server.description && (
+            <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              {server.description}
+            </Paragraph>
+          )}
+
+          {/* Tools */}
+          <Collapse
+            activeKey={isExpanded ? ['tools'] : []}
+            onChange={(keys) => {
+              if (keys.includes('tools')) {
+                setExpandedServers([...expandedServers, server.id]);
+              } else {
+                setExpandedServers(expandedServers.filter((id) => id !== server.id));
+              }
+            }}
+            ghost
+          >
+            <Panel
+              key="tools"
+              header={
+                <Space>
+                  <ToolOutlined />
+                  <span>Tools ({server.tool_count})</span>
+                </Space>
+              }
+            >
+              {renderToolsTable(server)}
+            </Panel>
+          </Collapse>
         </Space>
-      ),
-    },
-  ];
+      </Card>
+    );
+  };
 
   return (
     <div>
@@ -209,41 +423,40 @@ export const DynamicMCPTools = () => {
         <div>
           <Title level={2} className="mb-2 flex items-center gap-2">
             <CodeOutlined />
-            Dynamic MCP Tools
+            Tool Providers
           </Title>
           <Paragraph type="secondary" className="mb-0">
-            Create API-based tools that agents can use. These tools are exposed via the Dynamic MCP Server.
+            Create API-based tool providers with multiple tools. Each provider groups tools
+            that share the same base URL and credentials.
           </Paragraph>
         </div>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+          <Button icon={<ReloadOutlined />} onClick={loadServers} loading={loading}>
             Refresh
           </Button>
           <Button
-            onClick={() => refreshMutation.mutate()}
-            loading={refreshMutation.isPending}
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleCreateServer}
           >
-            Sync to MCP Server
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateTool}>
-            Create Tool
+            Create Provider
           </Button>
         </Space>
       </div>
 
       {/* Info Alert */}
       <Alert
-        message="How Dynamic MCP Tools Work"
+        message="How Tool Providers Work"
         description={
           <div>
             <p className="mb-2">
-              Dynamic MCP Tools let you create API-based tools without writing code:
+              Tool Providers let you create API-based tools without writing code:
             </p>
             <ol className="list-decimal list-inside space-y-1 text-sm">
-              <li>Define your tool with an API endpoint and parameters</li>
-              <li>Agents call the tool by name with the required parameters</li>
-              <li>The Dynamic MCP Server makes the actual API call securely</li>
-              <li>The response is returned to the agent</li>
+              <li>Create a provider with your API's base URL and credentials</li>
+              <li>Add multiple tools, each defining a path and parameters</li>
+              <li>Agents call tools by name, the provider makes API calls securely</li>
+              <li>Credentials are never exposed to the LLM</li>
             </ol>
           </div>
         }
@@ -253,50 +466,57 @@ export const DynamicMCPTools = () => {
         closable
       />
 
-      {/* Tools Table */}
-      {tools.length === 0 && !isLoading ? (
+      {/* Search */}
+      <Input
+        placeholder="Search providers and tools..."
+        prefix={<SearchOutlined />}
+        value={searchText}
+        onChange={(e) => setSearchText(e.target.value)}
+        style={{ marginBottom: 16, maxWidth: 400 }}
+        allowClear
+      />
+
+      {/* Content */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin size="large" />
+        </div>
+      ) : filteredServers.length === 0 ? (
         <Card>
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
-              <div className="text-center">
-                <Text type="secondary">No dynamic MCP tools created yet</Text>
-                <br />
-                <Button
-                  type="primary"
-                  icon={<PlusOutlined />}
-                  onClick={handleCreateTool}
-                  className="mt-4"
-                >
-                  Create Your First Tool
-                </Button>
-              </div>
+              searchText
+                ? 'No providers or tools match your search'
+                : 'No Tool Providers yet'
             }
-          />
+          >
+            {!searchText && (
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateServer}>
+                Create Your First Provider
+              </Button>
+            )}
+          </Empty>
         </Card>
       ) : (
-        <Table
-          columns={columns}
-          dataSource={tools}
-          rowKey="id"
-          loading={isLoading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} tools`,
-          }}
-        />
+        <div>
+          {filteredServers.map(renderServerCard)}
+        </div>
       )}
 
-      {/* Create/Edit Modal */}
-      <DynamicMCPToolModal
-        visible={modalVisible}
+      {/* Modal */}
+      <DynamicMCPServerModal
+        open={modalOpen}
         onClose={() => {
-          setModalVisible(false);
-          setEditingTool(null);
+          setModalOpen(false);
+          setEditingServer(undefined);
         }}
-        editingTool={editingTool}
+        onSuccess={loadServers}
+        server={editingServer}
+        credentials={credentials}
       />
     </div>
   );
 };
+
+export default DynamicMCPTools;

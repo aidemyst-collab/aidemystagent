@@ -1,8 +1,8 @@
 """
-Dynamic MCP Tool model for storing tool definitions used by the Dynamic MCP Server.
+Dynamic MCP Tool model for storing tool definitions within a Dynamic MCP Server.
 
-These tools are created via UI and exposed by the Dynamic MCP Server.
-The server reads these definitions and makes actual API calls on behalf of agents.
+Each tool belongs to a DynamicMCPServer and inherits its base_url and credentials.
+Tools only define the path, method, and parameters - the server handles the rest.
 """
 from sqlalchemy import Column, String, DateTime, Boolean, ForeignKey, JSON, Integer
 from sqlalchemy.dialects.postgresql import UUID
@@ -15,47 +15,41 @@ from app.core.database import Base
 
 class DynamicMCPTool(Base):
     """
-    Stores tool definitions for the Dynamic MCP Server.
+    Stores tool definitions for a Dynamic MCP Server.
 
-    When an agent calls a tool, the Dynamic MCP Server:
-    1. Looks up this definition by name
-    2. Fetches the credential (if specified)
-    3. Makes the actual API call
-    4. Returns the result to the agent
-
-    The LLM never sees the actual credentials - only tool name and parameters.
+    Each tool belongs to a server and uses relative paths.
+    Example:
+        Server: https://api.weather.com/v1
+        Tool: get_weather
+            path: /current
+            method: GET
+            → Full URL: https://api.weather.com/v1/current
     """
     __tablename__ = "dynamic_mcp_tools"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
-    creator_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+
+    # Parent server relationship
+    server_id = Column(UUID(as_uuid=True), ForeignKey("dynamic_mcp_servers.id"), nullable=False)
 
     # Tool identification
     name = Column(String(100), nullable=False)
     description = Column(String(500), nullable=False)
 
-    # API configuration
-    api_endpoint = Column(String(1000), nullable=False)
+    # Endpoint configuration (relative to server base_url)
+    path = Column(String(500), nullable=False)  # e.g., "/weather" or "/users/{user_id}"
     method = Column(String(10), nullable=False, default="GET")  # GET, POST, PUT, PATCH, DELETE
 
     # Parameters schema (JSON array of ToolParameter)
     parameters = Column(JSON, default=list)
 
-    # Request configuration
-    headers = Column(JSON, default=dict)  # Custom headers
+    # Request configuration (overrides server defaults if set)
+    headers = Column(JSON, default=dict)  # Additional headers (merged with server defaults)
     query_params = Column(JSON, default=dict)  # Static query parameters
     body_template = Column(JSON, default=dict)  # Body template for POST/PUT/PATCH
 
-    # Authentication (credential reference - NOT the actual secret)
-    credential_id = Column(String, ForeignKey("credentials.id"), nullable=True)
-
     # Response handling
-    response_path = Column(String(200), nullable=True)  # JSON path to extract
-    response_template = Column(String(1000), nullable=True)  # Template to format response
-
-    # Timeout and retry
-    timeout_seconds = Column(Integer, default=30)
+    response_path = Column(String(200), nullable=True)  # JSON path to extract (e.g., "data.items")
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
@@ -65,18 +59,17 @@ class DynamicMCPTool(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    organization = relationship("Organization", back_populates="dynamic_mcp_tools")
-    creator = relationship("User", back_populates="dynamic_mcp_tools")
-    credential = relationship("Credential", back_populates="dynamic_mcp_tools")
+    server = relationship("DynamicMCPServer", back_populates="tools")
 
     def __repr__(self):
-        return f"<DynamicMCPTool(id={self.id}, name={self.name}, endpoint={self.api_endpoint})>"
+        return f"<DynamicMCPTool(id={self.id}, name={self.name}, path={self.path})>"
 
     def to_mcp_tool_schema(self) -> dict:
         """
-        Convert to MCP tool schema format for the Dynamic MCP Server.
+        Convert to MCP tool schema format for the Dynamic MCP Server runtime.
 
         Returns format compatible with FastMCP tool registration.
+        The _config includes server information for execution.
         """
         # Build input schema from parameters
         properties = {}
@@ -118,18 +111,30 @@ class DynamicMCPTool(Base):
                 "properties": properties,
                 "required": required,
             },
-            # Internal metadata for execution
+            # Internal metadata for execution (includes server info)
             "_config": {
                 "tool_id": str(self.id),
-                "organization_id": str(self.organization_id),
-                "api_endpoint": self.api_endpoint,
+                "server_id": str(self.server_id),
+                "path": self.path,
                 "method": self.method,
                 "headers": self.headers or {},
                 "query_params": self.query_params or {},
                 "body_template": self.body_template or {},
-                "credential_id": self.credential_id,
                 "response_path": self.response_path,
-                "response_template": self.response_template,
-                "timeout_seconds": self.timeout_seconds,
             }
         }
+
+    def get_full_url(self, base_url: str) -> str:
+        """
+        Get the full URL for this tool by combining server base_url and tool path.
+
+        Args:
+            base_url: The server's base URL
+
+        Returns:
+            Full URL string
+        """
+        # Ensure base_url doesn't end with / and path starts with /
+        base = base_url.rstrip("/")
+        path = self.path if self.path.startswith("/") else f"/{self.path}"
+        return f"{base}{path}"

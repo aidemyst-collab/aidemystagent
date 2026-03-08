@@ -8,6 +8,8 @@ from app.models.role import Role, UserRole as UserRoleAssignment, RoleScope, SYS
 from app.models.audit_log import AuditLog, AuditAction
 from app.models.invitation import Invitation, InvitationStatus
 from app.models.organization_usage import OrganizationUsage
+from app.models.dynamic_mcp_server import DynamicMCPServer
+from app.models.dynamic_mcp_tool import DynamicMCPTool
 
 __all__ = [
     # User & Organization
@@ -47,4 +49,7 @@ __all__ = [
     "InvitationStatus",
     # Usage
     "OrganizationUsage",
+    # Dynamic MCP
+    "DynamicMCPServer",
+    "DynamicMCPTool",
 ]
