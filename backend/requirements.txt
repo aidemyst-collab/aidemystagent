@@ -37,6 +37,11 @@ aiohttp>=3.9.1
 # Pin to v2 for production stability (v3 is beta)
 fastmcp<3
 
+# Azure SDK for Container Apps management
+azure-identity>=1.15.0
+azure-mgmt-appcontainers>=3.0.0
+azure-mgmt-containerregistry>=10.0.0
+
 # Utilities
 pyyaml>=6.0.1
 email-validator>=2.1.0

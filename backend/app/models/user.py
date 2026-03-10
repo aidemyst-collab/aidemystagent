@@ -82,6 +82,7 @@ class Organization(Base):
     usage_records = relationship("OrganizationUsage", back_populates="organization")
     mcp_servers = relationship("MCPServer", back_populates="organization")
     dynamic_mcp_servers = relationship("DynamicMCPServer", back_populates="organization")
+    hosted_mcp_servers = relationship("HostedMCPServer", back_populates="organization")
 
     def __repr__(self):
         return f"<Organization(name={self.name}, slug={self.slug})>"
@@ -136,6 +137,7 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
     mcp_servers = relationship("MCPServer", back_populates="creator")
     dynamic_mcp_servers = relationship("DynamicMCPServer", back_populates="creator")
+    hosted_mcp_servers = relationship("HostedMCPServer", back_populates="creator")
 
     def __repr__(self):
         return f"<User(email={self.email}, org={self.organization_id})>"

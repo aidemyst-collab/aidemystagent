@@ -4,7 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.logging_config import logger
-from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, users, rag, admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers
+from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, users, rag, admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers, hosted_mcp_servers
 from app.middleware.error_handler import (
     http_exception_handler,
     validation_exception_handler,
@@ -62,6 +62,7 @@ app.include_router(voice.router, prefix=f"{settings.API_V1_PREFIX}/voice", tags=
 app.include_router(whatsapp.router, prefix=f"{settings.API_V1_PREFIX}", tags=["whatsapp"])
 app.include_router(mcp_servers.router, prefix=f"{settings.API_V1_PREFIX}/mcp-servers", tags=["mcp-servers"])
 app.include_router(dynamic_mcp_servers.router, prefix=f"{settings.API_V1_PREFIX}/dynamic-mcp-servers", tags=["dynamic-mcp-servers"])
+app.include_router(hosted_mcp_servers.router, prefix=f"{settings.API_V1_PREFIX}/hosted-mcp-servers", tags=["hosted-mcp-servers"])
 
 # Public API routes (organization-scoped, API key auth)
 app.include_router(public_invoke.router, prefix=f"{settings.API_V1_PREFIX}", tags=["public"])

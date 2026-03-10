@@ -1,5 +1,5 @@
 # Azure Container Apps Deployment Pipeline
-# Last updated: 2026-03-05 - Added Dynamic MCP Server deployment
+# Last updated: 2026-03-10 - Added Hosted MCP Servers Azure SDK support
 name: Deploy to Azure
 
 on:
@@ -190,7 +190,15 @@ jobs:
               "REDIS_URL=${{ secrets.REDIS_URL }}" \
               "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
               "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" \
-              "MCP_INTERNAL_API_KEY=${{ secrets.MCP_INTERNAL_API_KEY }}"
+              "MCP_INTERNAL_API_KEY=${{ secrets.MCP_INTERNAL_API_KEY }}" \
+              "AZURE_SUBSCRIPTION_ID=${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+              "AZURE_RESOURCE_GROUP=${{ env.AZURE_RESOURCE_GROUP }}" \
+              "AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" \
+              "AZURE_CLIENT_SECRET=${{ secrets.AZURE_CLIENT_SECRET }}" \
+              "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
+              "ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}" \
+              "ACR_USERNAME=${{ secrets.ACR_USERNAME }}" \
+              "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}"
 
       - name: Deploy Frontend to Container Apps
         uses: azure/container-apps-deploy-action@v1

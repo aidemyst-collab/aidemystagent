@@ -144,6 +144,12 @@ export const MainLayout = () => {
       onClick: () => navigate('/mcp-tools'),
     },
     {
+      key: '/hosted-mcp-servers',
+      icon: <CloudServerOutlined />,
+      label: 'Hosted MCP',
+      onClick: () => navigate('/hosted-mcp-servers'),
+    },
+    {
       key: '/credentials',
       icon: <KeyOutlined />,
       label: 'Credentials',

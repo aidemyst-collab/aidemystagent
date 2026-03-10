@@ -63,6 +63,16 @@ class Settings(BaseSettings):
     VOICE_WEBHOOK_BASIC_AUTH: bool = False  # Enable Basic Auth for voice webhooks (requires per-deployment config)
     VOICE_WEBHOOK_SIGNATURE_REQUIRED: bool = True  # Require webhook signature validation
 
+    # Azure Container Apps Settings (for Hosted MCP Servers)
+    AZURE_SUBSCRIPTION_ID: str = ""
+    AZURE_RESOURCE_GROUP: str = "agentstudio-rg"
+    AZURE_CLIENT_ID: str = ""
+    AZURE_CLIENT_SECRET: str = ""
+    AZURE_TENANT_ID: str = ""
+    ACR_LOGIN_SERVER: str = "agentstudioacr.azurecr.io"
+    ACR_USERNAME: str = ""
+    ACR_PASSWORD: str = ""
+
     class Config:
         env_file = ".env"
         case_sensitive = True

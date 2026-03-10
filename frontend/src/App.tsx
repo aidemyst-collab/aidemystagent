@@ -11,6 +11,7 @@ import { AgentTest } from './pages/AgentTest';
 import { Tools } from './pages/Tools';
 import { MCPServers } from './pages/MCPServers';
 import { DynamicMCPTools } from './pages/DynamicMCPTools';
+import { HostedMCPServers } from './pages/HostedMCPServers';
 import { Credentials } from './pages/Credentials';
 import { Templates } from './pages/Templates';
 import { Deployments } from './pages/Deployments';
@@ -78,6 +79,7 @@ function App() {
                 <Route path="tools" element={<Tools />} />
                 <Route path="mcp-servers" element={<MCPServers />} />
                 <Route path="mcp-tools" element={<DynamicMCPTools />} />
+                <Route path="hosted-mcp-servers" element={<HostedMCPServers />} />
                 <Route path="credentials" element={<Credentials />} />
                 <Route path="templates" element={<Templates />} />
                 <Route path="deployments" element={<Deployments />} />

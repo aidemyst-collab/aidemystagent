@@ -10,6 +10,7 @@ from app.models.invitation import Invitation, InvitationStatus
 from app.models.organization_usage import OrganizationUsage
 from app.models.dynamic_mcp_server import DynamicMCPServer
 from app.models.dynamic_mcp_tool import DynamicMCPTool
+from app.models.hosted_mcp_server import HostedMCPServer, HostedMCPServerStatus, HostedMCPServerSourceType
 
 __all__ = [
     # User & Organization
@@ -52,4 +53,8 @@ __all__ = [
     # Dynamic MCP
     "DynamicMCPServer",
     "DynamicMCPTool",
+    # Hosted MCP
+    "HostedMCPServer",
+    "HostedMCPServerStatus",
+    "HostedMCPServerSourceType",
 ]
