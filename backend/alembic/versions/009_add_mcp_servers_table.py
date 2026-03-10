@@ -17,9 +17,9 @@ depends_on = None
 
 
 def upgrade():
-    # Create enums
-    op.execute("CREATE TYPE mcpserverstatus AS ENUM ('active', 'inactive', 'error')")
-    op.execute("CREATE TYPE mcptransporttype AS ENUM ('sse', 'http', 'stdio')")
+    # Create enums (with IF NOT EXISTS to make migration idempotent)
+    op.execute("DO $$ BEGIN CREATE TYPE mcpserverstatus AS ENUM ('active', 'inactive', 'error'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    op.execute("DO $$ BEGIN CREATE TYPE mcptransporttype AS ENUM ('sse', 'http', 'stdio'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
 
     # Create mcp_servers table
     op.create_table(
