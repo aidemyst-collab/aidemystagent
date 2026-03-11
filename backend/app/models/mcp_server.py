@@ -43,7 +43,7 @@ class MCPServer(Base):
     # Connection details
     server_url = Column(String(500), nullable=False)
     transport_type = Column(
-        SQLEnum(MCPTransportType, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(MCPTransportType, values_callable=lambda x: [e.value for e in x], name='mcptransporttype', create_type=False),
         default=MCPTransportType.SSE,
         nullable=False
     )
@@ -53,7 +53,7 @@ class MCPServer(Base):
 
     # Status and health
     status = Column(
-        SQLEnum(MCPServerStatus, values_callable=lambda x: [e.value for e in x]),
+        SQLEnum(MCPServerStatus, values_callable=lambda x: [e.value for e in x], name='mcpserverstatus', create_type=False),
         default=MCPServerStatus.ACTIVE,
         nullable=False
     )
