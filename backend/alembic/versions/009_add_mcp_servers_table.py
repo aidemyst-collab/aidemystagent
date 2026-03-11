@@ -17,8 +17,13 @@ depends_on = None
 
 
 def upgrade():
+    # Debug: Print to verify latest code is deployed
+    print("=== MIGRATION 009: Running with idempotent ENUM creation (v2) ===")
+
     # Create enums (with IF NOT EXISTS to make migration idempotent)
+    print("Creating mcpserverstatus enum (idempotent)...")
     op.execute("DO $$ BEGIN CREATE TYPE mcpserverstatus AS ENUM ('active', 'inactive', 'error'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
+    print("Creating mcptransporttype enum (idempotent)...")
     op.execute("DO $$ BEGIN CREATE TYPE mcptransporttype AS ENUM ('sse', 'http', 'stdio'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
 
     # Create mcp_servers table
