@@ -11,11 +11,12 @@ export interface DashboardStats {
 
 export interface RecentActivity {
   id: string;
-  type: 'agent_created' | 'agent_deployed' | 'agent_executed';
-  agentId: string;
-  agentName: string;
-  timestamp: string;
-  details?: any;
+  type?: 'agent_created' | 'agent_deployed' | 'agent_executed';
+  agent_id: string;
+  agent_name: string;
+  created_at: string;
+  tokens_used?: number;
+  execution_time?: number;
 }
 
 export const dashboardService = {

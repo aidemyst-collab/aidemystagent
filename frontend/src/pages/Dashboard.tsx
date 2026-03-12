@@ -7,34 +7,22 @@ import type { RecentActivity } from '../features/dashboard/dashboardService';
 
 const { Title, Text, Paragraph } = Typography;
 
-const getActivityIcon = (type: RecentActivity['type']) => {
-  switch (type) {
-    case 'agent_created':
-      return <PlusOutlined style={{ color: '#52c41a' }} />;
-    case 'agent_deployed':
-      return <RocketOutlined style={{ color: '#1890ff' }} />;
-    case 'agent_executed':
-      return <ThunderboltOutlined style={{ color: '#faad14' }} />;
-    default:
-      return <PlayCircleOutlined />;
-  }
+const getActivityIcon = () => {
+  // Backend returns execution records
+  return <ThunderboltOutlined style={{ color: '#faad14' }} />;
 };
 
 const getActivityText = (activity: RecentActivity) => {
-  switch (activity.type) {
-    case 'agent_created':
-      return `Created workflow "${activity.agentName}"`;
-    case 'agent_deployed':
-      return `Deployed workflow "${activity.agentName}"`;
-    case 'agent_executed':
-      return `Executed workflow "${activity.agentName}"`;
-    default:
-      return activity.type;
-  }
+  // Backend returns execution records, so these are all executions
+  return `Executed workflow "${activity.agent_name}"`;
 };
 
-const formatTimestamp = (timestamp: string) => {
+const formatTimestamp = (timestamp: string | null | undefined) => {
+  if (!timestamp) return 'Unknown';
+
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return 'Unknown';
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -167,7 +155,7 @@ export const Dashboard = () => {
                 renderItem={(item) => (
                   <List.Item style={{ padding: '12px 0' }}>
                     <List.Item.Meta
-                      avatar={getActivityIcon(item.type)}
+                      avatar={getActivityIcon()}
                       title={
                         <Text style={{ fontSize: 14 }}>
                           {getActivityText(item)}
@@ -175,7 +163,7 @@ export const Dashboard = () => {
                       }
                       description={
                         <Text type="secondary" style={{ fontSize: 12 }}>
-                          {formatTimestamp(item.timestamp)}
+                          {formatTimestamp(item.created_at)}
                         </Text>
                       }
                     />
