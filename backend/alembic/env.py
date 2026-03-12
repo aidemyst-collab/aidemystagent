@@ -14,6 +14,9 @@ from app.models.tool import Tool, ToolExecution
 from app.models.deployment import Deployment
 from app.models.version import AgentVersion
 from app.models.credential import Credential
+from app.models.mcp_server import MCPServer
+from app.models.dynamic_mcp_server import DynamicMCPServer
+from app.models.hosted_mcp_server import HostedMCPServer
 
 # Alembic Config object
 config = context.config
