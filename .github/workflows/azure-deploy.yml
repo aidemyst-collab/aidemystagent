@@ -190,7 +190,7 @@ jobs:
       - name: Deploy Backend to Container Apps
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          BACKEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:sha-${SHORT_SHA}"
+          BACKEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:${SHORT_SHA}"
           echo "Deploying backend image: ${BACKEND_IMAGE}"
           az containerapp update \
             --name ${{ env.BACKEND_APP_NAME }} \
@@ -215,7 +215,7 @@ jobs:
       - name: Deploy Frontend to Container Apps
         run: |
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-          FRONTEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:sha-${SHORT_SHA}"
+          FRONTEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:${SHORT_SHA}"
           echo "Deploying frontend image: ${FRONTEND_IMAGE}"
           az containerapp update \
             --name ${{ env.FRONTEND_APP_NAME }} \
