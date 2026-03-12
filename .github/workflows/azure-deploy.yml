@@ -189,11 +189,13 @@ jobs:
 
       - name: Deploy Backend to Container Apps
         run: |
-          echo "Deploying backend image: ${{ needs.build-backend.outputs.image_sha }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          BACKEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:sha-${SHORT_SHA}"
+          echo "Deploying backend image: ${BACKEND_IMAGE}"
           az containerapp update \
             --name ${{ env.BACKEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ needs.build-backend.outputs.image_sha }} \
+            --image "${BACKEND_IMAGE}" \
             --set-env-vars \
               "SECRET_KEY=${{ secrets.SECRET_KEY }}" \
               "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
@@ -212,11 +214,13 @@ jobs:
 
       - name: Deploy Frontend to Container Apps
         run: |
-          echo "Deploying frontend image: ${{ needs.build-frontend.outputs.image_sha }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          FRONTEND_IMAGE="${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:sha-${SHORT_SHA}"
+          echo "Deploying frontend image: ${FRONTEND_IMAGE}"
           az containerapp update \
             --name ${{ env.FRONTEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ needs.build-frontend.outputs.image_sha }}
+            --image "${FRONTEND_IMAGE}"
 
       - name: Health Check - Backend
         run: |
