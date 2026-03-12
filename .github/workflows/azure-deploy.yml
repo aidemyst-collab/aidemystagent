@@ -33,7 +33,7 @@ jobs:
   build-backend:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
+      image_sha: ${{ steps.sha.outputs.image }}
 
     steps:
       - name: Checkout code
@@ -69,11 +69,15 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Get SHA image tag
+        id: sha
+        run: echo "image=${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
   # Build and push Frontend
   build-frontend:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
+      image_sha: ${{ steps.sha.outputs.image }}
 
     steps:
       - name: Checkout code
@@ -110,6 +114,10 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}
+
+      - name: Get SHA image tag
+        id: sha
+        run: echo "image=${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
   # Build and push Dynamic MCP Server
   build-mcp-server:
@@ -181,10 +189,11 @@ jobs:
 
       - name: Deploy Backend to Container Apps
         run: |
+          echo "Deploying backend image: ${{ needs.build-backend.outputs.image_sha }}"
           az containerapp update \
             --name ${{ env.BACKEND_APP_NAME }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --image ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-backend:development \
+            --image ${{ needs.build-backend.outputs.image_sha }} \
             --set-env-vars \
               "SECRET_KEY=${{ secrets.SECRET_KEY }}" \
               "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
@@ -202,11 +211,12 @@ jobs:
               "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}"
 
       - name: Deploy Frontend to Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
-          containerAppName: ${{ env.FRONTEND_APP_NAME }}
-          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/agentstudio-frontend:development
+        run: |
+          echo "Deploying frontend image: ${{ needs.build-frontend.outputs.image_sha }}"
+          az containerapp update \
+            --name ${{ env.FRONTEND_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ needs.build-frontend.outputs.image_sha }}
 
       - name: Health Check - Backend
         run: |
