@@ -2,7 +2,7 @@
 MCP Server model for managing MCP server registry
 """
 from sqlalchemy import Column, String, DateTime, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import UUID, ENUM as PgENUM
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -25,21 +25,6 @@ class MCPTransportType(str, enum.Enum):
     STDIO = "stdio"
 
 
-# Define PostgreSQL ENUM types explicitly with create_type=False
-# Types are created by Alembic migrations, not SQLAlchemy
-mcp_transport_enum = PgENUM(
-    "sse", "http", "stdio",
-    name="mcptransporttype",
-    create_type=False
-)
-
-mcp_status_enum = PgENUM(
-    "active", "inactive", "error",
-    name="mcpserverstatus",
-    create_type=False
-)
-
-
 class MCPServer(Base):
     """
     Stores MCP server configurations for centralized management.
@@ -57,13 +42,17 @@ class MCPServer(Base):
 
     # Connection details
     server_url = Column(String(500), nullable=False)
-    transport_type = Column(mcp_transport_enum, default="sse", nullable=False)
+    # Using String to avoid PostgreSQL ENUM type creation issues
+    # Valid values: 'sse', 'http', 'stdio'
+    transport_type = Column(String(20), default="sse", nullable=False)
 
     # Optional credential for authentication
     credential_id = Column(String, ForeignKey("credentials.id"), nullable=True)
 
     # Status and health
-    status = Column(mcp_status_enum, default="active", nullable=False)
+    # Using String to avoid PostgreSQL ENUM type creation issues
+    # Valid values: 'active', 'inactive', 'error'
+    status = Column(String(20), default="active", nullable=False)
     last_health_check = Column(DateTime, nullable=True)
     last_error = Column(String(1000), nullable=True)
 

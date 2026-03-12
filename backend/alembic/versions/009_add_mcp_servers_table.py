@@ -17,16 +17,8 @@ depends_on = None
 
 
 def upgrade():
-    # Debug: Print to verify latest code is deployed
-    print("=== MIGRATION 009: Running with idempotent ENUM creation (v2) ===")
-
-    # Create enums (with IF NOT EXISTS to make migration idempotent)
-    print("Creating mcpserverstatus enum (idempotent)...")
-    op.execute("DO $$ BEGIN CREATE TYPE mcpserverstatus AS ENUM ('active', 'inactive', 'error'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
-    print("Creating mcptransporttype enum (idempotent)...")
-    op.execute("DO $$ BEGIN CREATE TYPE mcptransporttype AS ENUM ('sse', 'http', 'stdio'); EXCEPTION WHEN duplicate_object THEN null; END $$;")
-
-    # Create mcp_servers table
+    # Create mcp_servers table using String columns instead of ENUM
+    # This avoids PostgreSQL ENUM type creation issues with SQLAlchemy
     op.create_table(
         'mcp_servers',
         sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
@@ -35,9 +27,9 @@ def upgrade():
         sa.Column('name', sa.String(100), nullable=False),
         sa.Column('description', sa.String(500), nullable=True),
         sa.Column('server_url', sa.String(500), nullable=False),
-        sa.Column('transport_type', sa.Enum('sse', 'http', 'stdio', name='mcptransporttype', create_type=False), nullable=False, server_default='sse'),
+        sa.Column('transport_type', sa.String(20), nullable=False, server_default='sse'),
         sa.Column('credential_id', sa.String(), nullable=True),
-        sa.Column('status', sa.Enum('active', 'inactive', 'error', name='mcpserverstatus', create_type=False), nullable=False, server_default='active'),
+        sa.Column('status', sa.String(20), nullable=False, server_default='active'),
         sa.Column('last_health_check', sa.DateTime(), nullable=True),
         sa.Column('last_error', sa.String(1000), nullable=True),
         sa.Column('discovered_tools', postgresql.JSON(), nullable=True, server_default='[]'),
@@ -69,5 +61,4 @@ def downgrade():
     op.drop_index(op.f('ix_mcp_servers_creator_id'), table_name='mcp_servers')
     op.drop_index(op.f('ix_mcp_servers_organization_id'), table_name='mcp_servers')
     op.drop_table('mcp_servers')
-    op.execute('DROP TYPE mcpserverstatus')
-    op.execute('DROP TYPE mcptransporttype')
+    # No ENUM types to drop - using String columns
