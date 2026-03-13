@@ -112,4 +112,18 @@ export const NODE_SCHEMAS: Record<string, NodeSchema> = {
     ],
     customizable: true,
   },
+
+  MCP_CLIENT: {
+    inputs: [
+      { name: 'arguments', type: 'object', description: 'Tool input arguments' },
+    ],
+    outputs: [
+      { name: 'result', type: 'object', description: 'MCP tool execution result', required: true },
+      { name: 'success', type: 'boolean', description: 'Whether tool succeeded' },
+      { name: 'error', type: 'string', description: 'Error message if failed' },
+      { name: 'server', type: 'string', description: 'MCP server name' },
+      { name: 'tool_name', type: 'string', description: 'Executed tool name' },
+    ],
+    customizable: false,
+  },
 };

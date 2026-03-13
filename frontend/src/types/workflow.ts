@@ -19,7 +19,8 @@ export type NodeType =
   | 'VOICE_INPUT'
   | 'VOICE_OUTPUT'
   | 'WHATSAPP_INPUT'
-  | 'WHATSAPP_OUTPUT';
+  | 'WHATSAPP_OUTPUT'
+  | 'MCP_CLIENT';
 
 // Node-Specific Configuration Interfaces
 
@@ -370,6 +371,20 @@ export interface WhatsAppOutputNodeConfig {
   fallbackMessage?: string;
 }
 
+export interface MCPClientNodeConfig {
+  // Server type selection
+  serverType: 'external' | 'dynamic' | 'hosted';
+
+  // Server ID (from selected type)
+  serverId: string | null;
+
+  // Selected tools from the server (by tool name)
+  selectedTools: string[];
+
+  // Credential override (optional - uses server default if not set)
+  credentialId?: string;
+}
+
 // Union type for all node configs
 export type NodeConfig =
   | InputNodeConfig
@@ -386,7 +401,8 @@ export type NodeConfig =
   | VoiceInputNodeConfig
   | VoiceOutputNodeConfig
   | WhatsAppInputNodeConfig
-  | WhatsAppOutputNodeConfig;
+  | WhatsAppOutputNodeConfig
+  | MCPClientNodeConfig;
 
 // Node Data Interface
 export interface WorkflowNodeData {
@@ -459,4 +475,8 @@ export function isOutputNode(node: WorkflowNode): node is WorkflowNode & { data:
 
 export function isExecuteWorkflowNode(node: WorkflowNode): node is WorkflowNode & { data: { config: ExecuteWorkflowNodeConfig } } {
   return node.data.type === 'EXECUTE_WORKFLOW';
+}
+
+export function isMCPClientNode(node: WorkflowNode): node is WorkflowNode & { data: { config: MCPClientNodeConfig } } {
+  return node.data.type === 'MCP_CLIENT';
 }

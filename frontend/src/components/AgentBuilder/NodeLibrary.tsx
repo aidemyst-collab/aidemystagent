@@ -15,6 +15,7 @@ import {
   PhoneOutlined,
   MessageOutlined,
   SendOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import type { NodeType } from '../../types/workflow';
 
@@ -147,6 +148,13 @@ const nodeDefinitions: NodeDefinition[] = [
     icon: <SendOutlined />,
     color: '#128C7E',
     description: 'Send WhatsApp responses (text, media, templates)',
+  },
+  {
+    type: 'MCP_CLIENT',
+    label: 'MCP Client',
+    icon: <ApiOutlined />,
+    color: '#eb2f96',
+    description: 'Connect to MCP servers and select tools',
   },
 ];
 

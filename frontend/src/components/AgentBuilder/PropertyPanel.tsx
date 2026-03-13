@@ -6,7 +6,9 @@ import type { WorkflowNode, WorkflowEdge } from '../../types/workflow';
 import { credentialService, type Credential } from '../../features/credentials/credentialService';
 import { toolService, type Tool } from '../../features/tools/toolService';
 import { ragService, type Collection } from '../../features/rag/ragService';
-import { mcpServerService, type MCPServer } from '../../features/mcp-servers/mcpServerService';
+import { mcpServerService, type MCPServer, type MCPToolSchema } from '../../features/mcp-servers/mcpServerService';
+import { dynamicMcpServerService, type DynamicMCPServer, type DynamicMCPTool } from '../../features/mcp-tools/dynamicMcpServerService';
+import { hostedMcpServerService, type HostedMCPServer, type DiscoveredTool } from '../../features/hosted-mcp/hostedMcpServerService';
 import { NodeInputPanel } from './NodeInputPanel';
 import { NodeOutputPanel } from './NodeOutputPanel';
 import { TemplateHelper } from './TemplateHelper';
@@ -40,6 +42,13 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
   const [builtInTools, setBuiltInTools] = useState<any[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [mcpServers, setMcpServers] = useState<MCPServer[]>([]);
+
+  // MCP_CLIENT node state
+  const [mcpClientServerType, setMcpClientServerType] = useState<'external' | 'dynamic' | 'hosted'>('external');
+  const [dynamicMcpServers, setDynamicMcpServers] = useState<DynamicMCPServer[]>([]);
+  const [hostedMcpServers, setHostedMcpServers] = useState<HostedMCPServer[]>([]);
+  const [mcpClientTools, setMcpClientTools] = useState<{ name: string; description?: string }[]>([]);
+  const [loadingMcpClientTools, setLoadingMcpClientTools] = useState(false);
 
   // External RAG state
   const [ragSource, setRagSource] = useState<string>('internal');
@@ -88,6 +97,20 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
         const currentWorkflowId = urlParams.get('id') || undefined;
         fetchWorkflows(currentWorkflowId);
       }
+
+      // If MCP_CLIENT node is selected, fetch all MCP server types and restore state
+      if (selectedNode.data.type === 'MCP_CLIENT') {
+        fetchDynamicMcpServers();
+        fetchHostedMcpServers();
+        // Restore server type from config
+        const configuredServerType = selectedNode.data.config?.serverType || 'external';
+        setMcpClientServerType(configuredServerType);
+        // Load tools if server is already selected
+        const serverId = selectedNode.data.config?.serverId;
+        if (serverId) {
+          fetchMcpClientTools(configuredServerType, serverId);
+        }
+      }
     } else {
       form.resetFields();
     }
@@ -133,6 +156,51 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
       setMcpServers(data.servers || []);
     } catch (error) {
       console.error('Error fetching MCP servers:', error);
+    }
+  };
+
+  const fetchDynamicMcpServers = async () => {
+    try {
+      const data = await dynamicMcpServerService.getServers(0, 100, true);
+      setDynamicMcpServers(data.servers || []);
+    } catch (error) {
+      console.error('Error fetching dynamic MCP servers:', error);
+    }
+  };
+
+  const fetchHostedMcpServers = async () => {
+    try {
+      const data = await hostedMcpServerService.getServers(0, 100, 'running');
+      setHostedMcpServers(data.servers || []);
+    } catch (error) {
+      console.error('Error fetching hosted MCP servers:', error);
+    }
+  };
+
+  const fetchMcpClientTools = async (serverType: 'external' | 'dynamic' | 'hosted', serverId: string) => {
+    setLoadingMcpClientTools(true);
+    setMcpClientTools([]);
+    try {
+      if (serverType === 'external') {
+        const server = mcpServers.find(s => s.id === serverId);
+        if (server?.discovered_tools) {
+          setMcpClientTools(server.discovered_tools.map(t => ({ name: t.name, description: t.description })));
+        }
+      } else if (serverType === 'dynamic') {
+        const server = dynamicMcpServers.find(s => s.id === serverId);
+        if (server?.tools) {
+          setMcpClientTools(server.tools.filter(t => t.is_active).map(t => ({ name: t.name, description: t.description })));
+        }
+      } else if (serverType === 'hosted') {
+        const server = hostedMcpServers.find(s => s.id === serverId);
+        if (server?.discovered_tools) {
+          setMcpClientTools(server.discovered_tools.map(t => ({ name: t.name, description: t.description })));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching MCP client tools:', error);
+    } finally {
+      setLoadingMcpClientTools(false);
     }
   };
 
@@ -621,6 +689,134 @@ export const PropertyPanel = ({ selectedNode, onUpdate, allNodes = [], allEdges 
                   No MCP servers registered. Go to MCP Servers page to add one.
                 </Typography.Text>
               )}
+            </Card>
+          </>
+        )}
+
+        {selectedNode.data.type === 'MCP_CLIENT' && (
+          <>
+            <Card size="small" title="MCP Server Connection" className="mb-4">
+              <Form.Item name={['config', 'serverType']} label="Server Type" initialValue="external">
+                <Select
+                  placeholder="Select server type"
+                  value={mcpClientServerType}
+                  onChange={(value: 'external' | 'dynamic' | 'hosted') => {
+                    setMcpClientServerType(value);
+                    setMcpClientTools([]);
+                    form.setFieldValue(['config', 'serverId'], null);
+                    form.setFieldValue(['config', 'selectedTools'], []);
+                  }}
+                  options={[
+                    { label: 'External MCP Server', value: 'external' },
+                    { label: 'Dynamic API Server', value: 'dynamic' },
+                    { label: 'Hosted MCP Server', value: 'hosted' },
+                  ]}
+                />
+              </Form.Item>
+
+              <Form.Item name={['config', 'serverId']} label="Server">
+                <Select
+                  placeholder="Select MCP server"
+                  allowClear
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={(value: string) => {
+                    if (value) {
+                      fetchMcpClientTools(mcpClientServerType, value);
+                    } else {
+                      setMcpClientTools([]);
+                    }
+                    form.setFieldValue(['config', 'selectedTools'], []);
+                  }}
+                  options={
+                    mcpClientServerType === 'external'
+                      ? mcpServers.map(server => ({
+                          label: `${server.name} (${server.discovered_tools?.length || 0} tools)`,
+                          value: server.id,
+                        }))
+                      : mcpClientServerType === 'dynamic'
+                      ? dynamicMcpServers.map(server => ({
+                          label: `${server.name} (${server.active_tool_count || 0} tools)`,
+                          value: server.id,
+                        }))
+                      : hostedMcpServers.map(server => ({
+                          label: `${server.name} (${server.tool_count || 0} tools)`,
+                          value: server.id,
+                        }))
+                  }
+                />
+              </Form.Item>
+            </Card>
+
+            <Card size="small" title="Tool Selection" className="mb-4">
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+                Select individual tools to make available to the LLM agent
+              </Typography.Text>
+
+              {loadingMcpClientTools ? (
+                <div style={{ textAlign: 'center', padding: 20 }}>
+                  <Spin size="small" />
+                  <Typography.Text type="secondary" style={{ marginLeft: 8 }}>Loading tools...</Typography.Text>
+                </div>
+              ) : mcpClientTools.length > 0 ? (
+                <Form.Item name={['config', 'selectedTools']}>
+                  <Checkbox.Group style={{ width: '100%' }}>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      {mcpClientTools.map(tool => (
+                        <Checkbox key={tool.name} value={tool.name} style={{ marginLeft: 0 }}>
+                          <div>
+                            <Typography.Text strong style={{ fontSize: 13 }}>{tool.name}</Typography.Text>
+                            {tool.description && (
+                              <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                                {tool.description}
+                              </Typography.Text>
+                            )}
+                          </div>
+                        </Checkbox>
+                      ))}
+                    </Space>
+                  </Checkbox.Group>
+                </Form.Item>
+              ) : (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {form.getFieldValue(['config', 'serverId'])
+                    ? 'No tools found on this server'
+                    : 'Select a server to view available tools'}
+                </Typography.Text>
+              )}
+
+              <Button
+                icon={<ReloadOutlined />}
+                size="small"
+                style={{ marginTop: 8 }}
+                onClick={() => {
+                  const serverId = form.getFieldValue(['config', 'serverId']);
+                  if (serverId) {
+                    fetchMcpClientTools(mcpClientServerType, serverId);
+                  }
+                }}
+                loading={loadingMcpClientTools}
+              >
+                Refresh Tools
+              </Button>
+            </Card>
+
+            <Card size="small" title="Advanced Settings" className="mb-4">
+              <Form.Item name={['config', 'credentialId']} label="Credential Override">
+                <Select
+                  placeholder="Use server default credential"
+                  allowClear
+                  options={credentials.map(cred => ({
+                    label: `${cred.name} (${cred.provider})`,
+                    value: cred.id,
+                  }))}
+                />
+              </Form.Item>
+              <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                Optional: Override the server's default credential for authentication
+              </Typography.Text>
             </Card>
           </>
         )}

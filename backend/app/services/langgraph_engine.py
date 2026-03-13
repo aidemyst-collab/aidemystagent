@@ -263,7 +263,7 @@ class LangGraphEngine:
         self.redis = redis_client
 
     def _get_connected_auxiliary_nodes(self, agent_config: dict, llm_agent_id: str) -> Dict[str, Any]:
-        """Get auxiliary nodes connected FROM LLM_AGENT (memory, tools, rag)."""
+        """Get auxiliary nodes connected FROM LLM_AGENT (memory, tools, rag, mcp_clients)."""
         nodes = agent_config.get("nodes", [])
         edges = agent_config.get("edges", [])
 
@@ -271,7 +271,8 @@ class LangGraphEngine:
         connected = {
             "memory": None,
             "tools": [],
-            "rag": None
+            "rag": None,
+            "mcp_clients": []
         }
 
         for edge in edges:
@@ -291,6 +292,8 @@ class LangGraphEngine:
                         connected["tools"].append(target_node)
                     elif node_type == "RAG_RETRIEVER":
                         connected["rag"] = target_node
+                    elif node_type == "MCP_CLIENT":
+                        connected["mcp_clients"].append(target_node)
 
         return connected
 
@@ -347,7 +350,7 @@ class LangGraphEngine:
         edges = agent_config.get("edges", [])
 
         # Auxiliary node types (don't add to workflow, queried by LLM_AGENT)
-        auxiliary_types = {"MEMORY", "TOOL", "RAG_RETRIEVER"}
+        auxiliary_types = {"MEMORY", "TOOL", "RAG_RETRIEVER", "MCP_CLIENT"}
 
         # Register node handlers (only for main flow nodes)
         for node in nodes:
@@ -961,6 +964,71 @@ class LangGraphEngine:
                                 logger.info(f"Loaded {len(mcp_server.discovered_tools)} tools from MCP server: {mcp_server.name}")
                         except Exception as e:
                             logger.error(f"Error loading MCP server {server_id}: {str(e)}")
+
+            # Handle MCP_CLIENT nodes - selective tool loading from MCP servers
+            if connected.get("mcp_clients") and self.db:
+                from app.models.dynamic_mcp_server import DynamicMCPServer
+                from app.models.hosted_mcp_server import HostedMCPServer
+
+                for mcp_client_node in connected["mcp_clients"]:
+                    mcp_config = mcp_client_node.get("data", {}).get("config", {})
+                    server_type = mcp_config.get("serverType", "external")
+                    server_id = mcp_config.get("serverId")
+                    selected_tools = mcp_config.get("selectedTools", [])
+
+                    if not server_id or not selected_tools:
+                        continue
+
+                    try:
+                        server_uuid = UUID(server_id) if isinstance(server_id, str) else server_id
+                        server = None
+                        server_url = None
+                        tools_source = []
+
+                        # Fetch server based on type
+                        if server_type == "external":
+                            server = await self.db.get(MCPServer, server_uuid)
+                            if server:
+                                server_url = server.server_url
+                                tools_source = server.discovered_tools or []
+                        elif server_type == "dynamic":
+                            server = await self.db.get(DynamicMCPServer, server_uuid)
+                            if server:
+                                server_url = server.base_url
+                                # Convert DynamicMCPTool to tool schema format
+                                tools_source = [
+                                    {"name": t.name, "description": t.description, "input_schema": {"type": "object", "properties": {p["name"]: {"type": p["type"], "description": p.get("description", "")} for p in (t.parameters or [])}}}
+                                    for t in (server.tools or []) if t.is_active
+                                ]
+                        elif server_type == "hosted":
+                            server = await self.db.get(HostedMCPServer, server_uuid)
+                            if server:
+                                server_url = server.azure_app_url
+                                tools_source = server.discovered_tools or []
+
+                        if not server or not server_url:
+                            logger.warning(f"MCP server not found: {server_id} (type: {server_type})")
+                            continue
+
+                        # Create LangChain tools only for selected tools
+                        for tool_name in selected_tools:
+                            # Find tool definition in source
+                            tool_def = next((t for t in tools_source if t.get("name") == tool_name), None)
+                            if tool_def:
+                                mcp_langchain_tool = self._create_mcp_tool(
+                                    server_url=server_url,
+                                    tool_name=tool_name,
+                                    tool_description=tool_def.get("description", f"MCP tool: {tool_name}"),
+                                    input_schema=tool_def.get("input_schema", {})
+                                )
+                                langchain_tools.append(mcp_langchain_tool)
+                                available_tools.append(f"mcp:{server.name}:{tool_name}")
+                            else:
+                                logger.warning(f"Tool '{tool_name}' not found on MCP server '{server.name}'")
+
+                        logger.info(f"Loaded {len(selected_tools)} selected tools from MCP_CLIENT node (server: {server.name})")
+                    except Exception as e:
+                        logger.error(f"Error loading MCP_CLIENT tools from server {server_id}: {str(e)}")
 
             # Query RAG node if connected
             rag_context = None

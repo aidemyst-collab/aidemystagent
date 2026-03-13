@@ -30,6 +30,7 @@ import {
   VoiceOutputNode,
   WhatsAppInputNode,
   WhatsAppOutputNode,
+  MCPClientNode,
 } from './nodes';
 import { CustomEdge } from './CustomEdge';
 import type { AgentNode, AgentEdge, NodeType } from '../../types/agent';
@@ -52,6 +53,7 @@ const nodeTypes: NodeTypes = {
   VoiceOutputNode,
   WhatsAppInputNode,
   WhatsAppOutputNode,
+  MCPClientNode,
 };
 
 // Map NodeType to component name
@@ -73,6 +75,7 @@ const nodeTypeMapping: Record<string, string> = {
   'VOICE_OUTPUT': 'VoiceOutputNode',
   'WHATSAPP_INPUT': 'WhatsAppInputNode',
   'WHATSAPP_OUTPUT': 'WhatsAppOutputNode',
+  'MCP_CLIENT': 'MCPClientNode',
 };
 
 const edgeTypes: EdgeTypes = {

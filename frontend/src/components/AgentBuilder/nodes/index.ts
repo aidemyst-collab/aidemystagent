@@ -16,6 +16,7 @@ export { VoiceInputNode } from './VoiceInputNode';
 export { VoiceOutputNode } from './VoiceOutputNode';
 export { WhatsAppInputNode } from './WhatsAppInputNode';
 export { WhatsAppOutputNode } from './WhatsAppOutputNode';
+export { MCPClientNode } from './MCPClientNode';
 
 export const nodeTypes = {
   INPUT: 'InputNode',
@@ -35,4 +36,5 @@ export const nodeTypes = {
   VOICE_OUTPUT: 'VoiceOutputNode',
   WHATSAPP_INPUT: 'WhatsAppInputNode',
   WHATSAPP_OUTPUT: 'WhatsAppOutputNode',
+  MCP_CLIENT: 'MCPClientNode',
 };
