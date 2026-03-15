@@ -4,7 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.logging_config import logger
-from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, users, rag, admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers, hosted_mcp_servers
+from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, organization_settings, users, rag, admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers, hosted_mcp_servers
 from app.middleware.error_handler import (
     http_exception_handler,
     validation_exception_handler,
@@ -43,6 +43,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix=f"{settings.API_V1_PREFIX}/auth", tags=["auth"])
 app.include_router(users.router, prefix=f"{settings.API_V1_PREFIX}/users", tags=["users"])
 app.include_router(organizations.router, prefix=f"{settings.API_V1_PREFIX}/organizations", tags=["organizations"])
+app.include_router(organization_settings.router, prefix=f"{settings.API_V1_PREFIX}/organizations", tags=["organization-settings"])
 app.include_router(agents.router, prefix=f"{settings.API_V1_PREFIX}/agents", tags=["agents"])
 app.include_router(workflows.router, prefix=f"{settings.API_V1_PREFIX}/workflows", tags=["workflows"])
 app.include_router(tools.router, prefix=f"{settings.API_V1_PREFIX}/tools", tags=["tools"])

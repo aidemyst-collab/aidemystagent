@@ -173,6 +173,17 @@ export const MainLayout = () => {
       label: 'Analytics',
       onClick: () => navigate('/analytics'),
     },
+    // Organization Settings (for admins and creators)
+    ...(canAccess('user-management')
+      ? [
+          {
+            key: '/settings',
+            icon: <SettingOutlined />,
+            label: 'Settings',
+            onClick: () => navigate('/settings'),
+          },
+        ]
+      : []),
     // Organization admin section
     ...(canAccess('user-management')
       ? [

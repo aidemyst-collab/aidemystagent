@@ -17,6 +17,7 @@ from app.services.external_rag_service import ExternalRAGService
 from app.services.template_engine import template_engine
 from app.services.audio_transcription_service import AudioTranscriptionService
 from app.services.text_to_speech_service import TextToSpeechService
+from app.services.guardrails import GuardrailService, GuardrailResult
 from app.models.credential import Credential
 from app.models.tool import Tool
 from app.models.mcp_server import MCPServer
@@ -78,6 +79,9 @@ class AgentState(TypedDict):
     output_audio: Optional[str]  # Base64 encoded output audio
     # Session data (structured data persisted across turns via CODE node)
     session_data: Optional[Dict[str, Any]]  # Collected data for multi-turn conversations
+    # Guardrails
+    guardrails_config: Optional[Dict[str, Any]]  # Workflow-level guardrails configuration
+    guardrails_results: Optional[Dict[str, Any]]  # Results from guardrail checks (input, retrieval, output)
 
 
 class StructuredOutputParser:
@@ -261,6 +265,25 @@ class LangGraphEngine:
         self.db = db
         self.pgvector_db = pgvector_db
         self.redis = redis_client
+
+    async def _initialize_guardrails(
+        self,
+        organization_id: Optional[str],
+        workflow_guardrails: Optional[Dict[str, Any]] = None
+    ) -> Optional[GuardrailService]:
+        """Initialize GuardrailService with org + workflow config merge."""
+        if not organization_id:
+            return None
+        try:
+            return await GuardrailService.create_with_org_merge(
+                org_id=organization_id,
+                workflow_config=workflow_guardrails or {},
+                db=self.db,
+                llm_client=None
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize guardrails: {e}")
+            return None
 
     def _get_connected_auxiliary_nodes(self, agent_config: dict, llm_agent_id: str) -> Dict[str, Any]:
         """Get auxiliary nodes connected FROM LLM_AGENT (memory, tools, rag, mcp_clients)."""
@@ -490,6 +513,26 @@ class LangGraphEngine:
 
             # Add message to state
             state["messages"] = [HumanMessage(content=message_content)]
+
+            # Run input guardrails if configured
+            guardrail_service = state.get("_guardrail_service")
+            if guardrail_service and mode != "audio":
+                try:
+                    input_result = await guardrail_service.validate_input(message_content)
+                    if state.get("guardrails_results") is None:
+                        state["guardrails_results"] = {}
+                    state["guardrails_results"]["input"] = input_result.model_dump()
+
+                    # Check if should block
+                    fail_action = (state.get("guardrails_config") or {}).get("global", {}).get("failAction", "warn")
+                    if not input_result.passed and fail_action == "block":
+                        error_msg = f"Input blocked by guardrails: {[v.message for v in input_result.violations]}"
+                        state["final_output"] = error_msg
+                        raise ValueError(error_msg)
+                except ValueError:
+                    raise
+                except Exception as e:
+                    logger.warning(f"Input guardrails error: {e}")
 
             # Capture output snapshot (exclude large audio_data from trace)
             if mode == "audio":
@@ -1125,6 +1168,39 @@ class LangGraphEngine:
                         "error": str(e),
                     }
 
+            # Run retrieval guardrails on RAG chunks
+            guardrail_service = state.get("_guardrail_service")
+            if guardrail_service and rag_chunks:
+                try:
+                    retrieval_result = await guardrail_service.validate_retrieval(rag_chunks)
+                    if state.get("guardrails_results") is None:
+                        state["guardrails_results"] = {}
+                    state["guardrails_results"]["retrieval"] = retrieval_result.model_dump()
+
+                    # Use filtered chunks from guardrails
+                    if "filtered_chunks" in retrieval_result.metadata:
+                        original_count = len(rag_chunks)
+                        rag_chunks = retrieval_result.metadata["filtered_chunks"]
+                        logger.info(f"Retrieval guardrails: {original_count} -> {len(rag_chunks)} chunks")
+
+                        # Re-format context with filtered chunks
+                        if rag_chunks and connected["rag"]:
+                            rag_config = connected["rag"].get("data", {}).get("config", {})
+                            rag_source = rag_config.get("ragSource", "internal")
+                            if rag_source == "external":
+                                external_url = rag_config.get("externalUrl", "http://localhost:8003")
+                                external_api_key = rag_config.get("externalApiKey")
+                                if external_api_key:
+                                    rag_service = ExternalRAGService(base_url=external_url, api_key=external_api_key)
+                                    rag_context = await rag_service.format_rag_context(
+                                        rag_chunks,
+                                        include_metadata=rag_config.get("includeMetadata", True)
+                                    )
+                        elif not rag_chunks:
+                            rag_context = None
+                except Exception as e:
+                    logger.warning(f"Retrieval guardrails error: {e}")
+
             # Add RAG details to input snapshot for debugging
             if connected["rag"]:
                 rag_node_config = connected["rag"].get("data", {}).get("config", {})
@@ -1281,7 +1357,27 @@ class LangGraphEngine:
                                 organization_id=state.get("organization_id"),
                                 workflow_id=state.get("workflow_id")
                             )
-    
+
+                # Run output guardrails
+                guardrail_service = state.get("_guardrail_service")
+                if guardrail_service:
+                    try:
+                        response_text = response.content if hasattr(response, 'content') else str(response)
+                        output_result = await guardrail_service.validate_output(
+                            response=response_text,
+                            context=rag_context or "",
+                            sources=rag_chunks if rag_chunks else []
+                        )
+                        if state.get("guardrails_results") is None:
+                            state["guardrails_results"] = {}
+                        state["guardrails_results"]["output"] = output_result.model_dump()
+
+                        # Log violations but don't block (output already generated)
+                        if not output_result.passed:
+                            logger.warning(f"Output guardrails violations: {[v.message for v in output_result.violations]}")
+                    except Exception as e:
+                        logger.warning(f"Output guardrails error: {e}")
+
                 # Capture output snapshot
                 output_snapshot = {
                     "response": response.content if hasattr(response, 'content') else str(response),
@@ -3241,7 +3337,19 @@ except Exception as e:
             "caller_id": caller_id,  # For voice webhooks
             "provider": provider,  # Voice provider (twilio/etisalat)
             "session_data": loaded_session_data,  # Loaded from Redis for CODE node persistence
+            # Guardrails
+            "guardrails_config": agent_config.get("guardrails"),
+            "guardrails_results": {},
+            "_guardrail_service": None,  # Will be set below
         }
+
+        # Initialize guardrails service
+        guardrail_service = await self._initialize_guardrails(
+            organization_id=organization_id,
+            workflow_guardrails=agent_config.get("guardrails")
+        )
+        if guardrail_service:
+            initial_state["_guardrail_service"] = guardrail_service
 
         # Execute graph with error handling to capture partial execution trace
         try:
@@ -3265,6 +3373,8 @@ except Exception as e:
                 # Session info for multi-turn conversations
                 "session_id": session_id,  # Return session_id so caller can continue conversation
                 "session_data": result.get("session_data", {}),  # Return session_data for CODE node persistence
+                # Guardrails results
+                "guardrails_results": result.get("guardrails_results", {}),
             }
         except Exception as e:
             # Return partial results with error information
@@ -3291,4 +3401,6 @@ except Exception as e:
                 # Session info even on error so caller can retry
                 "session_id": session_id,
                 "session_data": initial_state.get("session_data", {}),
+                # Guardrails results (may contain partial results)
+                "guardrails_results": initial_state.get("guardrails_results", {}),
             }
