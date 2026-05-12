@@ -444,7 +444,7 @@ class LangGraphEngine:
             return node.get("data", {}).get("config", {})
         return {}
 
-    def _handle_input_node(self, state: AgentState) -> AgentState:
+    async def _handle_input_node(self, state: AgentState) -> AgentState:
         """Handle INPUT node - initialize agent state with mode support."""
         start_time = datetime.utcnow()
 
