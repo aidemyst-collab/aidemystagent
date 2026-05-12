@@ -24,7 +24,8 @@ config = context.config
 # Override sqlalchemy.url with DATABASE_URL environment variable if available
 database_url = os.getenv("DATABASE_URL")
 if database_url:
-    config.set_main_option("sqlalchemy.url", database_url)
+    # Escape % so ConfigParser doesn't treat %xx as interpolation sequences
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
@@ -56,8 +57,12 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
+    section = config.get_section(config.config_ini_section, {})
+    # Use raw DATABASE_URL to avoid ConfigParser %xx interpolation issues
+    if database_url:
+        section["sqlalchemy.url"] = database_url
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
