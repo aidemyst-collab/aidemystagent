@@ -13,12 +13,20 @@ from dataclasses import dataclass
 
 from azure.identity import ClientSecretCredential
 from azure.mgmt.containerregistry import ContainerRegistryManagementClient
-from azure.mgmt.containerregistry.models import (
-    DockerBuildRequest,
-    PlatformProperties,
-    SourceUploadDefinition,
-)
 from azure.core.exceptions import HttpResponseError
+
+try:
+    from azure.mgmt.containerregistry.models import (
+        DockerBuildRequest,
+        PlatformProperties,
+        SourceUploadDefinition,
+    )
+    _ACR_BUILD_AVAILABLE = True
+except ImportError:
+    _ACR_BUILD_AVAILABLE = False
+    DockerBuildRequest = None
+    PlatformProperties = None
+    SourceUploadDefinition = None
 
 from app.core.config import settings
 
