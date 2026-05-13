@@ -31,3 +31,19 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
 
   return <>{children}</>;
 };
+
+interface FeatureRouteProps {
+  children: ReactNode;
+  feature: string;
+}
+
+/** Route guard that redirects to /dashboard when the current user lacks the required feature. */
+export const FeatureRoute = ({ children, feature }: FeatureRouteProps) => {
+  const canAccess = useAuthStore((state) => state.canAccess);
+
+  if (!canAccess(feature)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <>{children}</>;
+};

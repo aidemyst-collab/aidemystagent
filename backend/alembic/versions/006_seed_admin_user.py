@@ -5,6 +5,7 @@ Revises: 005
 Create Date: 2026-01-18
 
 """
+import os
 from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
@@ -20,14 +21,17 @@ depends_on: Union[str, Sequence[str], None] = None
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Default admin credentials
-ADMIN_EMAIL = "admin@agentstudio.io"
-ADMIN_PASSWORD = "AgentStudio@2026!"
+ADMIN_EMAIL = os.environ.get("SEED_ADMIN_EMAIL", "")
+ADMIN_PASSWORD = os.environ.get("SEED_ADMIN_PASSWORD", "")
 ADMIN_FULL_NAME = "Platform Administrator"
 ORG_NAME = "AgentStudio"
 
 
 def upgrade() -> None:
+    if not ADMIN_EMAIL or not ADMIN_PASSWORD:
+        print("SEED_ADMIN_EMAIL or SEED_ADMIN_PASSWORD not set — skipping admin seed.")
+        return
+
     # Generate password hash
     password_hash = pwd_context.hash(ADMIN_PASSWORD)
 
@@ -125,17 +129,7 @@ def upgrade() -> None:
         )
         print(f"Assigned org_owner role to admin user")
 
-    print(f"""
-    ============================================
-    Default Admin User Created Successfully!
-    ============================================
-    Email:    {ADMIN_EMAIL}
-    Password: {ADMIN_PASSWORD}
-    Role:     Platform Administrator
-    ============================================
-    Please change this password after first login!
-    ============================================
-    """)
+    print(f"Admin user {ADMIN_EMAIL} created. Change the password after first login.")
 
 
 def downgrade() -> None:

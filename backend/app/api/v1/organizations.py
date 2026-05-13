@@ -233,6 +233,67 @@ async def get_current_organization(
     )
 
 
+@router.get("/current/settings")
+async def get_current_organization_settings(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get the current user's organization settings."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No organization associated with this account")
+
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == current_user.organization_id,
+            Organization.deleted_at.is_(None),
+        )
+    )
+    organization = result.scalar_one_or_none()
+
+    if not organization:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    return {
+        "organizationId": str(organization.id),
+        "settings": organization.settings or {},
+        "updatedAt": organization.updated_at.isoformat() if organization.updated_at else None,
+    }
+
+
+@router.patch("/current/settings")
+async def update_current_organization_settings(
+    updates: Dict[str, Any],
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Update settings for the current user's organization. Org Owner/Admin only."""
+    if not current_user.organization_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No organization associated with this account")
+
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == current_user.organization_id,
+            Organization.deleted_at.is_(None),
+        )
+    )
+    organization = result.scalar_one_or_none()
+
+    if not organization:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    current_settings = organization.settings or {}
+    current_settings.update(updates)
+    organization.settings = current_settings
+    await db.commit()
+    await db.refresh(organization)
+
+    return {
+        "organizationId": str(organization.id),
+        "settings": organization.settings or {},
+        "updatedAt": organization.updated_at.isoformat() if organization.updated_at else None,
+    }
+
+
 @router.get("/{organization_id}", response_model=OrganizationResponse)
 async def get_organization(
     organization_id: UUID,

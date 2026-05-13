@@ -149,12 +149,16 @@ export const MainLayout = () => {
       label: 'Hosted MCP',
       onClick: () => navigate('/hosted-mcp-servers'),
     },
-    {
-      key: '/credentials',
-      icon: <KeyOutlined />,
-      label: 'Credentials',
-      onClick: () => navigate('/credentials'),
-    },
+    ...(canAccess('credentials-access')
+      ? [
+          {
+            key: '/credentials',
+            icon: <KeyOutlined />,
+            label: 'Credentials',
+            onClick: () => navigate('/credentials'),
+          },
+        ]
+      : []),
     {
       key: '/templates',
       icon: <FolderOutlined />,

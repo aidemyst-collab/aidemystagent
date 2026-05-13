@@ -3,6 +3,7 @@ import { RocketOutlined, PlayCircleOutlined, CheckCircleOutlined, PlusOutlined, 
 import { useDashboardStats, useRecentActivity } from '../features/dashboard/dashboardHooks';
 import { useWorkflows } from '../features/workflows/workflowHooks';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../features/auth/authStore';
 import type { RecentActivity } from '../features/dashboard/dashboardService';
 
 const { Title, Text, Paragraph } = Typography;
@@ -37,6 +38,7 @@ const formatTimestamp = (timestamp: string | null | undefined) => {
 
 export const Dashboard = () => {
   const navigate = useNavigate();
+  const canCreateWorkflow = useAuthStore((state) => state.canAccess)('agent-management');
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: activity, isLoading: activityLoading } = useRecentActivity(5);
   const { data: workflows, isLoading: workflowsLoading } = useWorkflows();
@@ -104,15 +106,17 @@ export const Dashboard = () => {
             extra={<AppstoreOutlined />}
           >
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                size="large"
-                block
-                onClick={() => navigate('/agents/new')}
-              >
-                Create New Workflow
-              </Button>
+              {canCreateWorkflow && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  size="large"
+                  block
+                  onClick={() => navigate('/agents/new')}
+                >
+                  Create New Workflow
+                </Button>
+              )}
               <Button
                 icon={<RocketOutlined />}
                 size="large"

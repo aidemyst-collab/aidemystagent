@@ -26,7 +26,7 @@ import ExecutionLogs from './pages/ExecutionLogs';
 import AcceptInvitation from './pages/AcceptInvitation';
 import { OrganizationSettingsPage } from './pages/OrganizationSettings';
 import { MainLayout } from './components/Common/MainLayout';
-import { ProtectedRoute } from './components/Common/ProtectedRoute';
+import { ProtectedRoute, FeatureRoute } from './components/Common/ProtectedRoute';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,24 +93,24 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="agents" element={<Agents />} />
-                <Route path="agents/new" element={<WorkflowBuilder />} />
-                <Route path="agents/:id/edit" element={<WorkflowBuilder />} />
+                <Route path="agents/new" element={<FeatureRoute feature="agent-management"><WorkflowBuilder /></FeatureRoute>} />
+                <Route path="agents/:id/edit" element={<FeatureRoute feature="agent-management"><WorkflowBuilder /></FeatureRoute>} />
                 <Route path="agents/:id/test" element={<AgentTest />} />
                 <Route path="tools" element={<Tools />} />
                 <Route path="mcp-servers" element={<MCPServers />} />
                 <Route path="mcp-tools" element={<DynamicMCPTools />} />
                 <Route path="hosted-mcp-servers" element={<HostedMCPServers />} />
-                <Route path="credentials" element={<Credentials />} />
+                <Route path="credentials" element={<FeatureRoute feature="credentials-access"><Credentials /></FeatureRoute>} />
                 <Route path="templates" element={<Templates />} />
                 <Route path="deployments" element={<Deployments />} />
                 <Route path="analytics" element={<Analytics />} />
-                <Route path="users" element={<Users />} />
-                <Route path="users/create" element={<Register />} />
-                <Route path="invitations" element={<Invitations />} />
-                <Route path="audit-logs" element={<AuditLogs />} />
-                <Route path="execution-logs" element={<ExecutionLogs />} />
-                <Route path="settings" element={<OrganizationSettingsPage />} />
-                <Route path="admin" element={<AdminDashboard />} />
+                <Route path="users" element={<FeatureRoute feature="user-management"><Users /></FeatureRoute>} />
+                <Route path="users/create" element={<FeatureRoute feature="user-management"><Register /></FeatureRoute>} />
+                <Route path="invitations" element={<FeatureRoute feature="invite-users"><Invitations /></FeatureRoute>} />
+                <Route path="audit-logs" element={<FeatureRoute feature="audit-logs"><AuditLogs /></FeatureRoute>} />
+                <Route path="execution-logs" element={<FeatureRoute feature="audit-logs"><ExecutionLogs /></FeatureRoute>} />
+                <Route path="settings" element={<FeatureRoute feature="settings"><OrganizationSettingsPage /></FeatureRoute>} />
+                <Route path="admin" element={<FeatureRoute feature="admin-dashboard"><AdminDashboard /></FeatureRoute>} />
               </Route>
 
               {/* Catch all */}

@@ -50,7 +50,7 @@ export const Login = () => {
   };
 
   return (
-    <div style={{
+    <div className="login-container" style={{
       display: 'flex',
       minHeight: '100vh',
       width: '100%',

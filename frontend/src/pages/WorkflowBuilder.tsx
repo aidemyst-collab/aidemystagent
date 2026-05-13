@@ -39,10 +39,6 @@ export const WorkflowBuilder = () => {
   // Load workflow data when editing
   useEffect(() => {
     if (workflowData) {
-      console.log('Loading workflow data:', workflowData);
-      console.log('Config:', workflowData.config);
-      console.log('Nodes:', workflowData.config?.nodes);
-      console.log('Edges:', workflowData.config?.edges);
       setWorkflowId(workflowData.id);
       setWorkflowName(workflowData.name);
       setWorkflowDescription(workflowData.description || '');
@@ -85,21 +81,16 @@ export const WorkflowBuilder = () => {
   }, [editForm]);
 
   const handleSave = useCallback(() => {
-    console.log('handleSave called - workflowName:', workflowName, 'nodes:', nodes.length);
     if (!workflowName.trim()) {
       message.error('Please enter a workflow name');
       return;
     }
-    console.log('Opening save modal');
     setSaveModalVisible(true);
   }, [workflowName, nodes]);
 
   const handleSaveConfirm = useCallback(async () => {
-    console.log('handleSaveConfirm called');
     try {
-      console.log('Validating form fields...');
       const values = await form.validateFields();
-      console.log('Form values:', values);
 
       const workflowConfig = {
         name: workflowName,
@@ -117,24 +108,18 @@ export const WorkflowBuilder = () => {
         version: 1,
       };
 
-      console.log('Workflow config built:', workflowConfig);
-
       let result;
 
       if (workflowId) {
-        console.log('Updating existing workflow with ID:', workflowId);
         result = await updateWorkflow.mutateAsync({
           id: workflowId,
           data: workflowConfig,
         });
       } else {
-        console.log('Creating new workflow');
         result = await createWorkflow.mutateAsync(workflowConfig);
-        console.log('Workflow created with result:', result);
         setWorkflowId(result.id);
       }
 
-      console.log('Closing save modal');
       setSaveModalVisible(false);
     } catch (error) {
       console.error('Save error:', error);

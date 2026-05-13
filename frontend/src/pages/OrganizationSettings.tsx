@@ -759,8 +759,8 @@ export const OrganizationSettingsPage: React.FC = () => {
     return (
       <Alert
         type="error"
-        message="Failed to load settings"
-        description={error.message}
+        message="Unable to load organization settings"
+        description="Settings could not be retrieved. Please refresh the page or contact your administrator if the problem persists."
         showIcon
       />
     );

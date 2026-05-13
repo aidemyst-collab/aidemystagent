@@ -38,6 +38,8 @@ const featureAccessMap: Record<string, string[]> = {
   'tool-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
   'deployment-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Operator'],
   'analytics': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer', 'Operator', 'Viewer'],
+  'credentials-access': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
+  'settings': ['Super Admin', 'Organization Owner', 'Organization Admin'],
 };
 
 export const useAuthStore = create<AuthState>()(
