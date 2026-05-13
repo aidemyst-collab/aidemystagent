@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ConfigProvider, App as AntApp } from 'antd';
+import { useEffect } from 'react';
+import { useAuthStore } from './features/auth/authStore';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -35,6 +37,22 @@ const queryClient = new QueryClient({
   },
 });
 
+function AuthInitializer() {
+  const { tokens, logout } = useAuthStore();
+
+  useEffect(() => {
+    if (!tokens?.accessToken) return;
+    try {
+      const payload = JSON.parse(atob(tokens.accessToken.split('.')[1]));
+      if (payload.exp * 1000 < Date.now()) logout();
+    } catch {
+      logout();
+    }
+  }, []);
+
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -55,6 +73,7 @@ function App() {
       >
         <AntApp>
           <BrowserRouter>
+            <AuthInitializer />
             <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />

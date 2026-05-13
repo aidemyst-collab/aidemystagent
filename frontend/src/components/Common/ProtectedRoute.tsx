@@ -7,10 +7,21 @@ interface ProtectedRouteProps {
   allowedRoles?: Array<'admin' | 'creator' | 'viewer'>;
 }
 
-export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
-  const { isAuthenticated, user } = useAuthStore();
+function isTokenExpired(token: string | null | undefined): boolean {
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch {
+    return true;
+  }
+}
 
-  if (!isAuthenticated) {
+export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+  const { isAuthenticated, user, tokens, logout } = useAuthStore();
+
+  if (!isAuthenticated || isTokenExpired(tokens?.accessToken)) {
+    if (isAuthenticated) logout();
     return <Navigate to="/login" replace />;
   }
 
