@@ -39,6 +39,14 @@ class PublicInvokeRequest(BaseModel):
         None,
         description="Optional node-specific inputs"
     )
+    mcp_auth_token: Optional[str] = Field(
+        None,
+        description="Runtime MCP auth token for per-request authentication (passed to all MCP tool calls)"
+    )
+    mcp_base_url: Optional[str] = Field(
+        None,
+        description="Runtime MCP server base URL override (replaces DB-stored URL when provided)"
+    )
 
 
 class PublicInvokeResponse(BaseModel):
@@ -177,8 +185,10 @@ async def invoke_deployment_public(
         # Execute
         result = await engine.execute_agent(
             agent_config=agent.config,
-            input_data=agent_input,
+            user_input=agent_input,
             session_id=request.session_id,
+            mcp_auth_token=request.mcp_auth_token,
+            mcp_base_url=request.mcp_base_url,
         )
 
         execution_time_ms = int((time.time() - start_time) * 1000)

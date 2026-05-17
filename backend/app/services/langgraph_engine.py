@@ -82,6 +82,9 @@ class AgentState(TypedDict):
     # Guardrails
     guardrails_config: Optional[Dict[str, Any]]  # Workflow-level guardrails configuration
     guardrails_results: Optional[Dict[str, Any]]  # Results from guardrail checks (input, retrieval, output)
+    # Runtime MCP credentials — per-request, overrides static DB config
+    mcp_auth_token: Optional[str]
+    mcp_base_url: Optional[str]
 
 
 class StructuredOutputParser:
@@ -320,7 +323,7 @@ class LangGraphEngine:
 
         return connected
 
-    def _create_mcp_tool(self, server_url: str, tool_name: str, tool_description: str, input_schema: dict):
+    def _create_mcp_tool(self, server_url: str, tool_name: str, tool_description: str, input_schema: dict, auth_token: Optional[str] = None):
         """Create a LangChain tool that calls an MCP server."""
         from langchain_core.tools import tool as langchain_tool
 
@@ -328,6 +331,7 @@ class LangGraphEngine:
         _server_url = server_url
         _tool_name = tool_name
         _tool_description = tool_description
+        _auth_token = auth_token  # Runtime credential — per-request, overrides DB config
 
         @langchain_tool
         async def mcp_tool_func(**kwargs) -> str:
@@ -338,7 +342,7 @@ class LangGraphEngine:
                     resource_uri=_tool_name,
                     server_url=_server_url,
                     input_data=kwargs,
-                    auth_token=None  # TODO: Get from credential if configured
+                    auth_token=_auth_token
                 )
                 if result.success:
                     if isinstance(result.result, dict):
@@ -999,7 +1003,8 @@ class LangGraphEngine:
                                         server_url=mcp_server.server_url,
                                         tool_name=tool_name,
                                         tool_description=tool_def.get("description", f"MCP tool: {tool_name}"),
-                                        input_schema=tool_def.get("input_schema", {})
+                                        input_schema=tool_def.get("input_schema", {}),
+                                        auth_token=state.get("mcp_auth_token")
                                     )
                                     langchain_tools.append(mcp_langchain_tool)
                                     available_tools.append(f"mcp:{mcp_server.name}:{tool_name}")
@@ -1062,7 +1067,8 @@ class LangGraphEngine:
                                     server_url=server_url,
                                     tool_name=tool_name,
                                     tool_description=tool_def.get("description", f"MCP tool: {tool_name}"),
-                                    input_schema=tool_def.get("input_schema", {})
+                                    input_schema=tool_def.get("input_schema", {}),
+                                    auth_token=state.get("mcp_auth_token")
                                 )
                                 langchain_tools.append(mcp_langchain_tool)
                                 available_tools.append(f"mcp:{server.name}:{tool_name}")
@@ -1790,6 +1796,8 @@ class LangGraphEngine:
                             session_id=state.get("session_id"),
                             organization_id=state.get("organization_id"),
                             workflow_id=UUID_type(child_workflow_id),
+                            mcp_auth_token=state.get("mcp_auth_token"),
+                            mcp_base_url=state.get("mcp_base_url"),
                         ),
                         timeout=timeout / 1000  # Convert to seconds
                     )
@@ -3251,7 +3259,9 @@ except Exception as e:
         input_mode: Optional[str] = None,
         session_id: Optional[str] = None,
         organization_id: Optional[str] = None,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
+        mcp_auth_token: Optional[str] = None,
+        mcp_base_url: Optional[str] = None,
     ) -> dict:
         """Execute an agent with given input.
 
@@ -3341,6 +3351,9 @@ except Exception as e:
             "guardrails_config": agent_config.get("guardrails"),
             "guardrails_results": {},
             "_guardrail_service": None,  # Will be set below
+            # Runtime MCP credentials — issued per-turn by the calling application
+            "mcp_auth_token": mcp_auth_token,
+            "mcp_base_url": mcp_base_url,
         }
 
         # Initialize guardrails service
