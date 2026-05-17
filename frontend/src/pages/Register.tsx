@@ -1,4 +1,4 @@
-import { Form, Input, Button, Card, Typography, message, Select, Progress } from 'antd';
+import { Form, Input, Button, Card, Typography, message, Select, Progress, Alert } from 'antd';
 import { LockOutlined, MailOutlined, TeamOutlined, UserOutlined, RobotOutlined, ApiOutlined, ThunderboltOutlined, SafetyOutlined, CloudOutlined } from '@ant-design/icons';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
@@ -61,6 +61,7 @@ export const Register = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [passwordValue, setPasswordValue] = useState('');
+  const [registerError, setRegisterError] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   // Check if accessed from within the app (e.g., /users/create)
@@ -86,6 +87,7 @@ export const Register = () => {
   }
 
   const onFinish = (values: any) => {
+    setRegisterError(null);
     const registerData: RegisterRequest = {
       email: values.email,
       password: values.password,
@@ -111,7 +113,12 @@ export const Register = () => {
         }
       },
       onError: (error) => {
-        message.error(error.message || (isInternalCreate ? 'Failed to create user' : 'Registration failed'));
+        const msg = error.message || (isInternalCreate ? 'Failed to create user' : 'Registration failed');
+        if (isInternalCreate) {
+          message.error(msg);
+        } else {
+          setRegisterError(msg);
+        }
       },
     });
   };
@@ -494,6 +501,17 @@ export const Register = () => {
                   {passwordStrength.percent === 100 && 'Strong'}
                 </Text>
               </div>
+            )}
+
+            {registerError && (
+              <Alert
+                message={registerError}
+                type="error"
+                showIcon
+                style={{ marginBottom: 16, borderRadius: 10 }}
+                closable
+                onClose={() => setRegisterError(null)}
+              />
             )}
 
             <Form.Item style={{ marginBottom: '16px', marginTop: '8px' }}>

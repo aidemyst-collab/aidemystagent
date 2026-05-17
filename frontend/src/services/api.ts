@@ -96,7 +96,14 @@ class ApiClient {
 
       if (isJson) {
         const error = await response.json().catch(() => null);
-        errorMessage = error?.message || error?.detail || errorMessage;
+        if (typeof error?.detail === 'string') {
+          errorMessage = error.detail;
+        } else if (Array.isArray(error?.detail)) {
+          // FastAPI 422 validation errors — pick the first message
+          errorMessage = error.detail.map((e: { msg?: string }) => e.msg).filter(Boolean).join('; ') || errorMessage;
+        } else if (typeof error?.message === 'string') {
+          errorMessage = error.message;
+        }
       }
 
       throw new Error(errorMessage);
