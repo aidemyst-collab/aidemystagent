@@ -145,7 +145,7 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    organization = relationship("Organization", back_populates="users")
+    organization = relationship("Organization", back_populates="users", foreign_keys="User.organization_id")
     agents = relationship("Agent", back_populates="creator", foreign_keys="Agent.creator_id")
     credentials = relationship("Credential", back_populates="user")
     user_roles = relationship("UserRole", back_populates="user", foreign_keys="UserRole.user_id")
