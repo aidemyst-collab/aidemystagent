@@ -210,7 +210,15 @@ jobs:
               "AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" \
               "ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}" \
               "ACR_USERNAME=${{ secrets.ACR_USERNAME }}" \
-              "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}"
+              "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}" \
+              "EMAIL_ENABLED=${{ secrets.EMAIL_ENABLED }}" \
+              "SMTP_HOST=${{ secrets.SMTP_HOST }}" \
+              "SMTP_PORT=${{ secrets.SMTP_PORT }}" \
+              "SMTP_USER=${{ secrets.SMTP_USER }}" \
+              "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" \
+              "SMTP_FROM_EMAIL=${{ secrets.SMTP_FROM_EMAIL }}" \
+              "SMTP_FROM_NAME=${{ secrets.SMTP_FROM_NAME }}" \
+              "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
 
       - name: Deploy Frontend to Container Apps
         run: |
