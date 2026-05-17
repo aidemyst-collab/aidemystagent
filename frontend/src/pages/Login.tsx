@@ -1,5 +1,6 @@
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { LockOutlined, MailOutlined, RobotOutlined, ApiOutlined, ThunderboltOutlined, SafetyOutlined, CloudOutlined, TeamOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { useLogin } from '../features/auth/authHooks';
 import type { LoginRequest } from '../types/auth';
 
@@ -280,9 +281,9 @@ export const Login = () => {
           }}>
             <Text type="secondary" style={{ fontSize: '14px' }}>
               Don't have an account?{' '}
-              <a href="/register" style={{ color: '#6366f1', fontWeight: 600 }}>
+              <Link to="/register" style={{ color: '#6366f1', fontWeight: 600 }}>
                 Create one
-              </a>
+              </Link>
             </Text>
           </div>
         </Card>
