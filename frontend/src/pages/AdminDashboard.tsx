@@ -12,17 +12,32 @@ import {
   CrownOutlined,
   PlusOutlined,
   EyeOutlined,
+  FileTextOutlined,
+  WarningOutlined,
+  InfoCircleOutlined,
+  CloseCircleOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminService } from '../features/admin/adminService';
 import type { OrganizationAdmin, UserAdmin, SubscriptionPlan } from '../types/auth';
 import { usePermissions, useImpersonation } from '../features/auth/authStore';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { apiClient } from '../services/api';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
 const { Text } = Typography;
+
+interface SystemLogEntry {
+  id: string;
+  level: string;
+  category: string;
+  message: string;
+  details?: Record<string, unknown>;
+  source?: string;
+  created_at: string;
+}
 
 interface OrgApprovalRecord {
   id: string;
@@ -37,7 +52,9 @@ interface OrgApprovalRecord {
 const AdminDashboard: React.FC = () => {
   const { isPlatformAdmin } = usePermissions();
   const navigate = useNavigate();
+  const location = useLocation();
   const { startImpersonation } = useImpersonation();
+  const initialTab = (location.state as { tab?: string } | null)?.tab || 'organizations';
   const queryClient = useQueryClient();
 
   const [orgSearch, setOrgSearch] = useState('');
@@ -53,6 +70,11 @@ const AdminDashboard: React.FC = () => {
   const [assignPlanModalVisible, setAssignPlanModalVisible] = useState(false);
   const [selectedOrgForPlan, setSelectedOrgForPlan] = useState<OrganizationAdmin | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
+
+  // System logs state
+  const [logLevel, setLogLevel] = useState<string | undefined>();
+  const [logCategory, setLogCategory] = useState<string | undefined>();
+  const [logSearch, setLogSearch] = useState('');
 
   // Org approval panel state
   const [approvalTab, setApprovalTab] = useState<'pending' | 'active' | 'suspended' | 'all'>('pending');
@@ -89,6 +111,21 @@ const AdminDashboard: React.FC = () => {
   const { data: plansData, isLoading: plansLoading } = useQuery({
     queryKey: ['admin', 'subscription-plans'],
     queryFn: () => adminService.listSubscriptionPlans({ includeInactive: true }),
+  });
+
+  const { data: systemLogsData, isLoading: systemLogsLoading } = useQuery({
+    queryKey: ['admin', 'system-logs', logLevel, logCategory, logSearch],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (logLevel) params.set('level', logLevel);
+      if (logCategory) params.set('category', logCategory);
+      if (logSearch) params.set('search', logSearch);
+      return apiClient.get(`/admin/system-logs?${params.toString()}`) as Promise<{
+        logs: SystemLogEntry[];
+        total: number;
+      }>;
+    },
+    refetchInterval: 30000,
   });
 
   // Org approval queries — one per tab
@@ -303,16 +340,14 @@ const AdminDashboard: React.FC = () => {
     {
       title: 'Status',
       key: 'status',
-      render: (_: unknown, record: OrganizationAdmin) => (
-        <Space direction="vertical" size={0}>
-          <Tag color={record.isActive ? 'green' : 'red'}>
-            {record.isActive ? 'Active' : 'Inactive'}
-          </Tag>
-          <Tag color={getStatusColor(record.subscriptionStatus)}>
-            {record.subscriptionStatus}
-          </Tag>
-        </Space>
-      ),
+      render: (_: unknown, record: OrganizationAdmin) => {
+        if (!record.isActive) {
+          return <Tag color="red">Inactive</Tag>;
+        }
+        return <Tag color={getStatusColor(record.subscriptionStatus)}>
+          {record.subscriptionStatus?.charAt(0).toUpperCase() + record.subscriptionStatus?.slice(1) || 'Unknown'}
+        </Tag>;
+      },
     },
     {
       title: 'Plan',
@@ -437,11 +472,11 @@ const AdminDashboard: React.FC = () => {
             <Button
               size="small"
               icon={<EyeOutlined />}
-              title="Impersonate user for troubleshooting"
+              title="View the platform as this user for troubleshooting"
               loading={impersonateUser.isPending && impersonateUser.variables === record.id}
               onClick={() => impersonateUser.mutate(record.id)}
             >
-              Impersonate
+              View as
             </Button>
           )}
         </Space>
@@ -778,7 +813,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Tabs */}
       <Card>
-        <Tabs defaultActiveKey="organizations">
+        <Tabs defaultActiveKey={initialTab}>
           <TabPane tab="Organizations" key="organizations">
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Space>
@@ -827,6 +862,9 @@ const AdminDashboard: React.FC = () => {
           </TabPane>
 
           <TabPane tab="Users" key="users">
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              All users across the platform
+            </Text>
             <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Space>
                 <Input
@@ -878,6 +916,94 @@ const AdminDashboard: React.FC = () => {
               loading={plansLoading}
               rowKey="id"
               pagination={{ pageSize: 10 }}
+            />
+          </TabPane>
+
+          <TabPane tab={<span><FileTextOutlined /> System Logs</span>} key="system-logs">
+            <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Input
+                placeholder="Search logs..."
+                prefix={<SearchOutlined />}
+                value={logSearch}
+                onChange={(e) => setLogSearch(e.target.value)}
+                style={{ width: 220 }}
+                allowClear
+              />
+              <Select
+                placeholder="Level"
+                value={logLevel}
+                onChange={setLogLevel}
+                style={{ width: 130 }}
+                allowClear
+              >
+                <Option value="INFO">INFO</Option>
+                <Option value="WARNING">WARNING</Option>
+                <Option value="ERROR">ERROR</Option>
+                <Option value="CRITICAL">CRITICAL</Option>
+              </Select>
+              <Select
+                placeholder="Category"
+                value={logCategory}
+                onChange={setLogCategory}
+                style={{ width: 150 }}
+                allowClear
+              >
+                <Option value="auth">auth</Option>
+                <Option value="system">system</Option>
+                <Option value="admin">admin</Option>
+                <Option value="deployment">deployment</Option>
+              </Select>
+            </div>
+            <Table
+              dataSource={systemLogsData?.logs || []}
+              loading={systemLogsLoading}
+              rowKey="id"
+              pagination={{ pageSize: 50 }}
+              size="small"
+              columns={[
+                {
+                  title: 'Time',
+                  dataIndex: 'created_at',
+                  key: 'created_at',
+                  width: 160,
+                  render: (v: string) => v ? new Date(v).toLocaleString() : '—',
+                },
+                {
+                  title: 'Level',
+                  dataIndex: 'level',
+                  key: 'level',
+                  width: 100,
+                  render: (level: string) => {
+                    const config: Record<string, { color: string; icon: React.ReactNode }> = {
+                      INFO: { color: 'blue', icon: <InfoCircleOutlined /> },
+                      WARNING: { color: 'orange', icon: <WarningOutlined /> },
+                      ERROR: { color: 'red', icon: <CloseCircleOutlined /> },
+                      CRITICAL: { color: 'volcano', icon: <CloseCircleOutlined /> },
+                    };
+                    const c = config[level] || { color: 'default', icon: <CheckCircleOutlined /> };
+                    return <Tag color={c.color} icon={c.icon}>{level}</Tag>;
+                  },
+                },
+                {
+                  title: 'Category',
+                  dataIndex: 'category',
+                  key: 'category',
+                  width: 110,
+                  render: (cat: string) => <Tag>{cat}</Tag>,
+                },
+                {
+                  title: 'Message',
+                  dataIndex: 'message',
+                  key: 'message',
+                },
+                {
+                  title: 'Source',
+                  dataIndex: 'source',
+                  key: 'source',
+                  width: 160,
+                  render: (src: string) => src ? <Text type="secondary" style={{ fontSize: 11 }}>{src}</Text> : '—',
+                },
+              ]}
             />
           </TabPane>
         </Tabs>

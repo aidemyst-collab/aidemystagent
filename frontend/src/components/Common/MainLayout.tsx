@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Typography, Tag, Select, Tooltip, Space, Button } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Typography, Tag, Button } from 'antd';
 import {
   DashboardOutlined,
   RocketOutlined,
@@ -18,22 +18,17 @@ import {
   AuditOutlined,
   HistoryOutlined,
   BankOutlined,
-  SwapOutlined,
-  EyeOutlined,
-  CloseCircleOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RobotOutlined,
   ApiOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, usePermissions, useOrganizationSwitcher, useImpersonation } from '../../features/auth/authStore';
 import { ImpersonationBanner } from './ImpersonationBanner';
 import { useLogout, useInitializeOrganization } from '../../features/auth/authHooks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../services/api';
 import type { MenuProps } from 'antd';
-import type { Organization } from '../../types/auth';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -47,11 +42,6 @@ const subscriptionStatusColors: Record<string, string> = {
   expired: 'default',
 };
 
-// Fetch all organizations for platform admin switcher
-const fetchAllOrganizations = async (): Promise<{ organizations: Organization[]; total: number }> => {
-  return apiClient.get('/organizations');
-};
-
 export const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -60,15 +50,9 @@ export const MainLayout = () => {
   const { mutate: logout } = useLogout();
   const { mutate: initializeOrganization } = useInitializeOrganization();
   const {
-    switchedOrganization,
     effectiveOrganization,
-    isSwitched,
-    canSwitch,
-    switchOrganization,
-    clearSwitch,
   } = useOrganizationSwitcher();
   const { isImpersonating } = useImpersonation();
-  const queryClient = useQueryClient();
 
   // Sidebar collapsed state - persisted in localStorage
   const [collapsed, setCollapsed] = useState(() => {
@@ -83,13 +67,6 @@ export const MainLayout = () => {
     localStorage.setItem('sidebarCollapsed', JSON.stringify(newState));
   };
 
-  // Fetch organizations for platform admin switcher
-  const { data: orgsData } = useQuery({
-    queryKey: ['all-organizations'],
-    queryFn: fetchAllOrganizations,
-    enabled: canSwitch, // Only fetch if user can switch (platform admin)
-  });
-
   // Initialize organization data on mount (for page refresh scenarios)
   useEffect(() => {
     if (isAuthenticated && !organization) {
@@ -97,28 +74,10 @@ export const MainLayout = () => {
     }
   }, [isAuthenticated, organization, initializeOrganization]);
 
-  // Handle organization switch
-  const handleOrgSwitch = (orgId: string) => {
-    if (orgId === 'self') {
-      clearSwitch();
-    } else {
-      const selectedOrg = orgsData?.organizations.find(o => o.id === orgId);
-      if (selectedOrg) {
-        switchOrganization(selectedOrg);
-      }
-    }
-    // Invalidate all queries to refetch data for the new organization
-    // Exclude the 'all-organizations' query as it's not org-specific
-    queryClient.invalidateQueries({
-      predicate: (query) => query.queryKey[0] !== 'all-organizations',
-    });
-  };
-
   // Platform admins get a focused admin-only menu; regular users get the full org menu
   const menuItems: MenuProps['items'] = isPlatformAdmin
     ? [
         // Platform Admin menu — only platform-scoped items
-        { type: 'divider' as const },
         {
           key: '/admin',
           icon: <CrownOutlined />,
@@ -136,6 +95,12 @@ export const MainLayout = () => {
           icon: <AuditOutlined />,
           label: 'Audit Logs',
           onClick: () => navigate('/audit-logs'),
+        },
+        {
+          key: '/admin-system-logs',
+          icon: <FileTextOutlined />,
+          label: 'System Logs',
+          onClick: () => navigate('/admin', { state: { tab: 'system-logs' } }),
         },
       ]
     : [
@@ -292,19 +257,19 @@ export const MainLayout = () => {
         trigger={null}
         width={220}
         collapsedWidth={80}
-        theme="light"
+        theme={isPlatformAdmin ? 'dark' : 'light'}
         style={{
-          borderRight: '1px solid #f0f0f0',
+          borderRight: isPlatformAdmin ? 'none' : '1px solid #f0f0f0',
           position: 'fixed',
           left: 0,
           top: 0,
           bottom: 0,
           zIndex: 100,
           overflow: 'auto',
+          background: isPlatformAdmin ? '#1a1a2e' : undefined,
         }}
       >
         <div
-          className="border-b border-gray-200"
           style={{
             padding: collapsed ? '16px 8px' : '16px',
             display: 'flex',
@@ -312,11 +277,12 @@ export const MainLayout = () => {
             justifyContent: collapsed ? 'center' : 'flex-start',
             gap: '10px',
             height: '64px',
+            borderBottom: isPlatformAdmin ? '1px solid rgba(255,255,255,0.1)' : '1px solid #f0f0f0',
           }}
         >
-          <RobotOutlined style={{ fontSize: 24, color: '#6366f1' }} />
+          <RobotOutlined style={{ fontSize: 24, color: isPlatformAdmin ? '#f59e0b' : '#6366f1' }} />
           {!collapsed && (
-            <Typography.Title level={4} style={{ margin: 0, color: '#312e81' }}>
+            <Typography.Title level={4} style={{ margin: 0, color: isPlatformAdmin ? '#fff' : '#312e81' }}>
               AgentStudio
             </Typography.Title>
           )}
@@ -325,7 +291,8 @@ export const MainLayout = () => {
           mode="inline"
           selectedKeys={[selectedKey]}
           items={menuItems}
-          style={{ borderRight: 0 }}
+          theme={isPlatformAdmin ? 'dark' : 'light'}
+          style={{ borderRight: 0, background: isPlatformAdmin ? '#1a1a2e' : undefined }}
           inlineCollapsed={collapsed}
         />
       </Sider>
@@ -353,57 +320,15 @@ export const MainLayout = () => {
                 height: 40,
               }}
             />
-            {canSwitch ? (
-              // Platform Admin: Show organization switcher
-              <Space size="middle">
-                {isSwitched && (
-                  <Tooltip title="Viewing as another organization">
-                    <Tag color="orange" icon={<EyeOutlined />} style={{ margin: 0 }}>
-                      Viewing As
-                    </Tag>
-                  </Tooltip>
-                )}
-                <Select
-                  value={switchedOrganization?.id || 'self'}
-                  onChange={handleOrgSwitch}
-                  style={{ minWidth: 220 }}
-                  popupMatchSelectWidth={false}
-                  optionLabelProp="label"
-                >
-                  <Select.Option value="self" label={organization?.name || 'My Organization'}>
-                    <div className="flex items-center gap-2">
-                      <BankOutlined style={{ color: '#1890ff' }} />
-                      <span>{organization?.name || 'My Organization'}</span>
-                      <Tag color="green" style={{ margin: 0, marginLeft: 'auto' }}>You</Tag>
-                    </div>
-                  </Select.Option>
-                  <Select.OptGroup label="Switch to Organization">
-                    {orgsData?.organizations
-                      .filter(org => org.id !== organization?.id)
-                      .map(org => (
-                        <Select.Option key={org.id} value={org.id} label={org.name}>
-                          <div className="flex items-center gap-2">
-                            <SwapOutlined style={{ color: '#888' }} />
-                            <span>{org.name}</span>
-                            {org.userCount && (
-                              <Text type="secondary" style={{ marginLeft: 'auto', fontSize: 11 }}>
-                                {org.userCount} users
-                              </Text>
-                            )}
-                          </div>
-                        </Select.Option>
-                      ))}
-                  </Select.OptGroup>
-                </Select>
-                {isSwitched && (
-                  <Tooltip title="Return to your organization">
-                    <CloseCircleOutlined
-                      onClick={() => handleOrgSwitch('self')}
-                      style={{ color: '#ff4d4f', fontSize: 16, cursor: 'pointer' }}
-                    />
-                  </Tooltip>
-                )}
-              </Space>
+            {isPlatformAdmin ? (
+              // Platform Admin: show console badge instead of org switcher
+              <Tag
+                color="gold"
+                icon={<CrownOutlined />}
+                style={{ fontSize: 13, padding: '4px 12px', margin: 0 }}
+              >
+                Platform Admin Console
+              </Tag>
             ) : (
               // Regular User: Show organization info
               <>

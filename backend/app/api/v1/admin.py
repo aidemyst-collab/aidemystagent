@@ -1197,3 +1197,81 @@ async def repair_missing_role_assignments(
         "total_users_checked": len(users),
         "errors": errors if errors else None
     }
+
+
+# ============== System Logs ==============
+
+class SystemLogResponse(BaseModel):
+    id: str
+    level: str
+    category: str
+    message: str
+    details: Optional[Dict[str, Any]] = None
+    source: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SystemLogListResponse(BaseModel):
+    logs: List[SystemLogResponse]
+    total: int
+
+
+@router.get("/system-logs", response_model=SystemLogListResponse)
+async def list_system_logs(
+    level: Optional[str] = Query(None, description="Filter by level: INFO, WARNING, ERROR, CRITICAL"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    search: Optional[str] = Query(None, description="Search in message"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_platform_admin),
+):
+    """
+    List system log entries with optional filters.
+    Platform admin only.
+    """
+    from app.models.system_log import SystemLog
+    from sqlalchemy import or_
+
+    conditions = []
+    if level:
+        conditions.append(SystemLog.level == level.upper())
+    if category:
+        conditions.append(SystemLog.category == category)
+    if search:
+        conditions.append(SystemLog.message.ilike(f"%{search}%"))
+
+    base_query = select(SystemLog)
+    if conditions:
+        base_query = base_query.where(and_(*conditions))
+
+    total_result = await db.execute(
+        select(func.count()).select_from(base_query.subquery())
+    )
+    total = total_result.scalar() or 0
+
+    logs_result = await db.execute(
+        base_query.order_by(SystemLog.created_at.desc())
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )
+    logs = logs_result.scalars().all()
+
+    return SystemLogListResponse(
+        logs=[
+            SystemLogResponse(
+                id=str(log.id),
+                level=log.level,
+                category=log.category,
+                message=log.message,
+                details=log.details,
+                source=log.source,
+                created_at=log.created_at,
+            )
+            for log in logs
+        ],
+        total=total,
+    )

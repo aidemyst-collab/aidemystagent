@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -11,8 +13,18 @@ from app.middleware.error_handler import (
     general_exception_handler,
 )
 from app.middleware.request_logger import log_requests
+from app.services.system_log_service import system_log, log_cleanup_loop
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await system_log("INFO", "system", "AgentStudio backend started", source="main")
+    asyncio.create_task(log_cleanup_loop())
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,

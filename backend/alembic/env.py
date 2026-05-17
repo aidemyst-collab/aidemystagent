@@ -17,6 +17,7 @@ from app.models.credential import Credential
 from app.models.mcp_server import MCPServer
 from app.models.dynamic_mcp_server import DynamicMCPServer
 from app.models.hosted_mcp_server import HostedMCPServer
+from app.models.system_log import SystemLog
 
 # Alembic Config object
 config = context.config
