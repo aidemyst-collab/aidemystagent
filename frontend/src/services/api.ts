@@ -92,17 +92,18 @@ class ApiClient {
     }
 
     if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      let errorMessage = `HTTP ${response.status}`;
 
-      if (isJson) {
-        const error = await response.json().catch(() => null);
-        if (typeof error?.detail === 'string') {
-          errorMessage = error.detail;
-        } else if (Array.isArray(error?.detail)) {
-          // FastAPI 422 validation errors — pick the first message
-          errorMessage = error.detail.map((e: { msg?: string }) => e.msg).filter(Boolean).join('; ') || errorMessage;
-        } else if (typeof error?.message === 'string') {
-          errorMessage = error.message;
+      // Always attempt JSON parsing regardless of Content-Type header
+      const errorBody = await response.json().catch(() => null);
+      if (errorBody) {
+        if (typeof errorBody.detail === 'string') {
+          errorMessage = errorBody.detail;
+        } else if (Array.isArray(errorBody.detail)) {
+          // FastAPI 422 validation errors return detail as an array
+          errorMessage = errorBody.detail.map((e: { msg?: string }) => e.msg).filter(Boolean).join('; ') || errorMessage;
+        } else if (typeof errorBody.message === 'string') {
+          errorMessage = errorBody.message;
         }
       }
 
