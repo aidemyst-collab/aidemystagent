@@ -86,7 +86,8 @@ class Organization(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    users = relationship("User", back_populates="organization")
+    users = relationship("User", back_populates="organization", foreign_keys="User.organization_id")
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
     agents = relationship("Agent", back_populates="organization")
     credentials = relationship("Credential", back_populates="organization")
     subscription_plan = relationship("SubscriptionPlan", back_populates="organizations")
