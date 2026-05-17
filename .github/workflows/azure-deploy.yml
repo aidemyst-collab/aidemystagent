@@ -211,7 +211,6 @@ jobs:
               "ACR_LOGIN_SERVER=${{ secrets.ACR_LOGIN_SERVER }}" \
               "ACR_USERNAME=${{ secrets.ACR_USERNAME }}" \
               "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}" \
-              "EMAIL_ENABLED=${{ secrets.EMAIL_ENABLED }}" \
               "ACS_CONNECTION_STRING=${{ secrets.ACS_CONNECTION_STRING }}" \
               "ACS_SENDER_ADDRESS=${{ secrets.ACS_SENDER_ADDRESS }}" \
               "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"

@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from typing import List
 import os
 
@@ -78,6 +79,13 @@ class Settings(BaseSettings):
     ACS_CONNECTION_STRING: str = ""   # Azure Communication Services connection string
     ACS_SENDER_ADDRESS: str = "DoNotReply@agentstudio365.azurecomm.net"
     FRONTEND_URL: str = "https://agentstudio365.com"
+
+    @field_validator('EMAIL_ENABLED', mode='before')
+    @classmethod
+    def parse_email_enabled(cls, v):
+        if isinstance(v, str) and v.strip() == '':
+            return False
+        return v
 
     class Config:
         env_file = ".env"
