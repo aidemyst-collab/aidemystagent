@@ -22,7 +22,9 @@ export const useLogin = () => {
         console.error('Failed to fetch organization details:', error);
       }
 
-      if (response.user?.orgApprovalStatus === 'pending') {
+      if (response.user?.isPlatformAdmin) {
+        navigate('/admin');
+      } else if (response.user?.orgApprovalStatus === 'pending') {
         navigate('/pending-approval');
       } else {
         navigate('/dashboard');

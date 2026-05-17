@@ -20,6 +20,10 @@ import { Deployments } from './pages/Deployments';
 import { Analytics } from './pages/Analytics';
 import { Users } from './pages/Users';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminOrganizations from './pages/AdminOrganizations';
+import AdminUsers from './pages/AdminUsers';
+import AdminPlans from './pages/AdminPlans';
+import AdminSystemLogs from './pages/AdminSystemLogs';
 import Invitations from './pages/Invitations';
 import AuditLogs from './pages/AuditLogs';
 import ExecutionLogs from './pages/ExecutionLogs';
@@ -37,6 +41,11 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function IndexRedirect() {
+  const { user } = useAuthStore();
+  return <Navigate to={user?.isPlatformAdmin ? '/admin' : '/dashboard'} replace />;
+}
 
 function AuthInitializer() {
   const { tokens, logout } = useAuthStore();
@@ -94,7 +103,7 @@ function App() {
                   </ProtectedRoute>
                 }
               >
-                <Route index element={<Navigate to="/dashboard" replace />} />
+                <Route index element={<IndexRedirect />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="agents" element={<Agents />} />
                 <Route path="agents/new" element={<FeatureRoute feature="agent-management"><WorkflowBuilder /></FeatureRoute>} />
@@ -115,6 +124,10 @@ function App() {
                 <Route path="execution-logs" element={<FeatureRoute feature="audit-logs"><ExecutionLogs /></FeatureRoute>} />
                 <Route path="settings" element={<FeatureRoute feature="settings"><OrganizationSettingsPage /></FeatureRoute>} />
                 <Route path="admin" element={<FeatureRoute feature="admin-dashboard"><AdminDashboard /></FeatureRoute>} />
+                <Route path="admin/organizations" element={<FeatureRoute feature="admin-dashboard"><AdminOrganizations /></FeatureRoute>} />
+                <Route path="admin/users" element={<FeatureRoute feature="admin-dashboard"><AdminUsers /></FeatureRoute>} />
+                <Route path="admin/plans" element={<FeatureRoute feature="admin-dashboard"><AdminPlans /></FeatureRoute>} />
+                <Route path="admin/system-logs" element={<FeatureRoute feature="admin-dashboard"><AdminSystemLogs /></FeatureRoute>} />
               </Route>
 
               {/* Catch all */}

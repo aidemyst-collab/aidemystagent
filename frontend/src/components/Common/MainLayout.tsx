@@ -77,19 +77,33 @@ export const MainLayout = () => {
   // Platform admins get a focused admin-only menu; regular users get the full org menu
   const menuItems: MenuProps['items'] = isPlatformAdmin
     ? [
-        // Platform Admin menu — only platform-scoped items
+        // Platform Admin nav — each section is its own page
         {
           key: '/admin',
-          icon: <CrownOutlined />,
-          label: 'Platform Admin',
+          icon: <DashboardOutlined />,
+          label: 'Dashboard',
           onClick: () => navigate('/admin'),
         },
+        { type: 'divider' as const },
         {
-          key: '/users',
-          icon: <TeamOutlined />,
-          label: 'All Users',
-          onClick: () => navigate('/users'),
+          key: '/admin/organizations',
+          icon: <BankOutlined />,
+          label: 'Organisations',
+          onClick: () => navigate('/admin/organizations'),
         },
+        {
+          key: '/admin/users',
+          icon: <TeamOutlined />,
+          label: 'Users',
+          onClick: () => navigate('/admin/users'),
+        },
+        {
+          key: '/admin/plans',
+          icon: <CrownOutlined />,
+          label: 'Plans',
+          onClick: () => navigate('/admin/plans'),
+        },
+        { type: 'divider' as const },
         {
           key: '/audit-logs',
           icon: <AuditOutlined />,
@@ -97,10 +111,10 @@ export const MainLayout = () => {
           onClick: () => navigate('/audit-logs'),
         },
         {
-          key: '/admin-system-logs',
+          key: '/admin/system-logs',
           icon: <FileTextOutlined />,
           label: 'System Logs',
-          onClick: () => navigate('/admin', { state: { tab: 'system-logs' } }),
+          onClick: () => navigate('/admin/system-logs'),
         },
       ]
     : [
@@ -244,7 +258,10 @@ export const MainLayout = () => {
     },
   ];
 
-  const selectedKey = '/' + location.pathname.split('/')[1];
+  // For admin sub-routes (/admin/organizations, /admin/users, etc.) use full path as key
+  const selectedKey = location.pathname.startsWith('/admin/')
+    ? location.pathname
+    : '/' + location.pathname.split('/')[1];
 
   return (
     <>
