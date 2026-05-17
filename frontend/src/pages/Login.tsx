@@ -279,7 +279,10 @@ export const Login = () => {
             borderTop: '1px solid #e2e8f0'
           }}>
             <Text type="secondary" style={{ fontSize: '14px' }}>
-              Need access? Contact your administrator.
+              Don't have an account?{' '}
+              <a href="/register" style={{ color: '#6366f1', fontWeight: 600 }}>
+                Create one
+              </a>
             </Text>
           </div>
         </Card>
