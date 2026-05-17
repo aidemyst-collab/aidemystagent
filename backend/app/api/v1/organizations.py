@@ -260,6 +260,16 @@ async def get_current_organization_settings(
     }
 
 
+@router.get("/me/usage")
+async def get_my_usage(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Get current organization usage vs plan limits."""
+    from app.services.quota_service import get_usage_summary
+    return await get_usage_summary(db, current_user.organization_id)
+
+
 @router.patch("/current/settings")
 async def update_current_organization_settings(
     updates: Dict[str, Any],

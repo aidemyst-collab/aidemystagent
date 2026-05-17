@@ -155,3 +155,18 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient();
+
+/**
+ * Parses a quota_exceeded error returned from the backend (HTTP 402).
+ * The error message format is: "quota_exceeded:<resource>:<limit>"
+ * Returns a human-readable string, or null if the error is not quota-related.
+ */
+export function parseQuotaError(error: unknown): string | null {
+  if (error instanceof Error && error.message?.startsWith('quota_exceeded:')) {
+    const parts = error.message.split(':');
+    const resource = parts[1];
+    const limit = parts[2];
+    return `${resource.charAt(0).toUpperCase() + resource.slice(1)} limit reached (${limit}). Upgrade your plan to add more.`;
+  }
+  return null;
+}

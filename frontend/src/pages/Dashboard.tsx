@@ -5,6 +5,7 @@ import { useWorkflows } from '../features/workflows/workflowHooks';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/authStore';
 import type { RecentActivity } from '../features/dashboard/dashboardService';
+import { QuotaUsage } from '../components/Common/QuotaUsage';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -224,6 +225,13 @@ export const Dashboard = () => {
           />
         </Card>
       )}
+
+      {/* Plan Usage */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24}>
+          <QuotaUsage />
+        </Col>
+      </Row>
     </div>
   );
 };

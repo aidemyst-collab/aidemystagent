@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Input, Select, Button, Tabs, Space, message, Modal, Form, InputNumber, Switch } from 'antd';
+import { Badge, Card, Row, Col, Statistic, Table, Tag, Input, Select, Button, Tabs, Space, message, Modal, Form, InputNumber, Switch, Typography } from 'antd';
 import {
   TeamOutlined,
   ApartmentOutlined,
@@ -11,18 +11,33 @@ import {
   ReloadOutlined,
   CrownOutlined,
   PlusOutlined,
+  EyeOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminService } from '../features/admin/adminService';
 import type { OrganizationAdmin, UserAdmin, SubscriptionPlan } from '../types/auth';
-import { usePermissions } from '../features/auth/authStore';
-import { Navigate } from 'react-router-dom';
+import { usePermissions, useImpersonation } from '../features/auth/authStore';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { apiClient } from '../services/api';
 
 const { TabPane } = Tabs;
 const { Option } = Select;
+const { Text } = Typography;
+
+interface OrgApprovalRecord {
+  id: string;
+  name: string;
+  slug?: string;
+  approvalStatus: string;
+  ownerEmail: string;
+  userCount: number;
+  createdAt: string;
+}
 
 const AdminDashboard: React.FC = () => {
   const { isPlatformAdmin } = usePermissions();
+  const navigate = useNavigate();
+  const { startImpersonation } = useImpersonation();
   const queryClient = useQueryClient();
 
   const [orgSearch, setOrgSearch] = useState('');
@@ -38,6 +53,12 @@ const AdminDashboard: React.FC = () => {
   const [assignPlanModalVisible, setAssignPlanModalVisible] = useState(false);
   const [selectedOrgForPlan, setSelectedOrgForPlan] = useState<OrganizationAdmin | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>();
+
+  // Org approval panel state
+  const [approvalTab, setApprovalTab] = useState<'pending' | 'active' | 'suspended' | 'all'>('pending');
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectingOrgId, setRejectingOrgId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   // Redirect non-platform admins
   if (!isPlatformAdmin) {
@@ -68,6 +89,78 @@ const AdminDashboard: React.FC = () => {
   const { data: plansData, isLoading: plansLoading } = useQuery({
     queryKey: ['admin', 'subscription-plans'],
     queryFn: () => adminService.listSubscriptionPlans({ includeInactive: true }),
+  });
+
+  // Org approval queries — one per tab
+  const { data: pendingOrgsData, isLoading: pendingOrgsLoading } = useQuery({
+    queryKey: ['admin-organizations', 'pending'],
+    queryFn: () => apiClient.get('/admin/organizations?status=pending') as Promise<{ organizations: OrgApprovalRecord[]; total: number }>,
+  });
+
+  const { data: activeApprovalOrgsData, isLoading: activeApprovalOrgsLoading } = useQuery({
+    queryKey: ['admin-organizations', 'active'],
+    queryFn: () => apiClient.get('/admin/organizations?status=active') as Promise<{ organizations: OrgApprovalRecord[]; total: number }>,
+    enabled: approvalTab === 'active',
+  });
+
+  const { data: suspendedApprovalOrgsData, isLoading: suspendedApprovalOrgsLoading } = useQuery({
+    queryKey: ['admin-organizations', 'suspended'],
+    queryFn: () => apiClient.get('/admin/organizations?status=suspended') as Promise<{ organizations: OrgApprovalRecord[]; total: number }>,
+    enabled: approvalTab === 'suspended',
+  });
+
+  const { data: allApprovalOrgsData, isLoading: allApprovalOrgsLoading } = useQuery({
+    queryKey: ['admin-organizations', 'all'],
+    queryFn: () => apiClient.get('/admin/organizations') as Promise<{ organizations: OrgApprovalRecord[]; total: number }>,
+    enabled: approvalTab === 'all',
+  });
+
+  const approveOrg = useMutation({
+    mutationFn: (orgId: string) => apiClient.post(`/admin/organizations/${orgId}/approve`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+      message.success('Organisation approved');
+    },
+    onError: () => {
+      message.error('Failed to approve organisation');
+    },
+  });
+
+  const rejectOrg = useMutation({
+    mutationFn: ({ orgId, reason }: { orgId: string; reason: string }) =>
+      apiClient.post(`/admin/organizations/${orgId}/reject`, { reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+      message.success('Organisation rejected');
+      setRejectModalVisible(false);
+      setRejectingOrgId(null);
+      setRejectReason('');
+    },
+    onError: () => {
+      message.error('Failed to reject organisation');
+    },
+  });
+
+  const suspendOrg = useMutation({
+    mutationFn: (orgId: string) => apiClient.post(`/admin/organizations/${orgId}/suspend`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+      message.success('Organisation suspended');
+    },
+    onError: () => {
+      message.error('Failed to suspend organisation');
+    },
+  });
+
+  const reactivateOrg = useMutation({
+    mutationFn: (orgId: string) => apiClient.post(`/admin/organizations/${orgId}/reactivate`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-organizations'] });
+      message.success('Organisation reactivated');
+    },
+    onError: () => {
+      message.error('Failed to reactivate organisation');
+    },
   });
 
   // Mutations
@@ -175,6 +268,22 @@ const AdminDashboard: React.FC = () => {
     },
     onError: () => {
       message.error('Failed to update plan');
+    },
+  });
+
+  const impersonateUser = useMutation({
+    mutationFn: (userId: string) =>
+      apiClient.post(`/auth/impersonate/${userId}`, {}) as Promise<{
+        accessToken: string;
+        targetUser: UserAdmin;
+      }>,
+    onSuccess: (data) => {
+      startImpersonation(data.targetUser as any, data.accessToken);
+      navigate('/dashboard');
+      message.success(`Now viewing as ${data.targetUser.email}`);
+    },
+    onError: (error: Error) => {
+      message.error(error.message || 'Failed to start impersonation session');
     },
   });
 
@@ -324,6 +433,17 @@ const AdminDashboard: React.FC = () => {
           >
             {record.isPlatformAdmin ? 'Remove Admin' : 'Make Admin'}
           </Button>
+          {!record.isPlatformAdmin && (
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              title="Impersonate user for troubleshooting"
+              loading={impersonateUser.isPending && impersonateUser.variables === record.id}
+              onClick={() => impersonateUser.mutate(record.id)}
+            >
+              Impersonate
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -419,6 +539,106 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Build org approval columns based on which sub-tab is active
+  const buildApprovalColumns = (tab: typeof approvalTab) => [
+    {
+      title: 'Organisation Name',
+      dataIndex: 'name',
+      key: 'name',
+      render: (name: string, record: OrgApprovalRecord) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{name}</div>
+          {record.slug && <Text type="secondary" style={{ fontSize: 12 }}>/{record.slug}</Text>}
+        </div>
+      ),
+    },
+    {
+      title: 'Owner Email',
+      dataIndex: 'ownerEmail',
+      key: 'ownerEmail',
+    },
+    {
+      title: 'Users',
+      dataIndex: 'userCount',
+      key: 'userCount',
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (date: string) => date ? new Date(date).toLocaleDateString() : '—',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_: unknown, record: OrgApprovalRecord) => (
+        <Space>
+          {tab === 'pending' && (
+            <>
+              <Button
+                size="small"
+                type="primary"
+                loading={approveOrg.isPending && approveOrg.variables === record.id}
+                onClick={() => approveOrg.mutate(record.id)}
+              >
+                Approve
+              </Button>
+              <Button
+                size="small"
+                danger
+                onClick={() => {
+                  setRejectingOrgId(record.id);
+                  setRejectReason('');
+                  setRejectModalVisible(true);
+                }}
+              >
+                Reject
+              </Button>
+            </>
+          )}
+          {tab === 'active' && (
+            <Button
+              size="small"
+              danger
+              loading={suspendOrg.isPending && suspendOrg.variables === record.id}
+              onClick={() => suspendOrg.mutate(record.id)}
+            >
+              Suspend
+            </Button>
+          )}
+          {tab === 'suspended' && (
+            <Button
+              size="small"
+              type="primary"
+              loading={reactivateOrg.isPending && reactivateOrg.variables === record.id}
+              onClick={() => reactivateOrg.mutate(record.id)}
+            >
+              Reactivate
+            </Button>
+          )}
+          {tab === 'all' && (
+            <Tag color={getApprovalStatusColor(record.approvalStatus)}>
+              {record.approvalStatus}
+            </Tag>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  const approvalTableData = (): { data: OrgApprovalRecord[]; loading: boolean } => {
+    switch (approvalTab) {
+      case 'pending':
+        return { data: pendingOrgsData?.organizations || [], loading: pendingOrgsLoading };
+      case 'active':
+        return { data: activeApprovalOrgsData?.organizations || [], loading: activeApprovalOrgsLoading };
+      case 'suspended':
+        return { data: suspendedApprovalOrgsData?.organizations || [], loading: suspendedApprovalOrgsLoading };
+      case 'all':
+        return { data: allApprovalOrgsData?.organizations || [], loading: allApprovalOrgsLoading };
+    }
+  };
+
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 24 }}>
@@ -486,6 +706,75 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {/* Org Approval Panel */}
+      <Card style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <h2 style={{ margin: 0 }}>Organisations</h2>
+          <Text type="secondary">Review and manage organisation approvals</Text>
+        </div>
+        <Tabs
+          activeKey={approvalTab}
+          onChange={(key) => setApprovalTab(key as typeof approvalTab)}
+          items={[
+            {
+              key: 'pending',
+              label: (
+                <Badge count={pendingOrgsData?.total ?? pendingOrgsData?.organizations?.length ?? 0} offset={[8, 0]}>
+                  Pending
+                </Badge>
+              ),
+            },
+            { key: 'active', label: 'Active' },
+            { key: 'suspended', label: 'Suspended' },
+            { key: 'all', label: 'All' },
+          ]}
+        />
+        <Table
+          dataSource={approvalTableData().data}
+          columns={buildApprovalColumns(approvalTab)}
+          loading={approvalTableData().loading}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+        />
+      </Card>
+
+      {/* Reject Modal */}
+      <Modal
+        title="Reject Organisation"
+        open={rejectModalVisible}
+        onCancel={() => {
+          setRejectModalVisible(false);
+          setRejectingOrgId(null);
+          setRejectReason('');
+        }}
+        onOk={() => {
+          if (!rejectReason.trim()) {
+            message.warning('Please provide a rejection reason');
+            return;
+          }
+          if (rejectingOrgId) {
+            rejectOrg.mutate({ orgId: rejectingOrgId, reason: rejectReason });
+          }
+        }}
+        okText="Reject Organisation"
+        okButtonProps={{ danger: true, loading: rejectOrg.isPending, disabled: !rejectReason.trim() }}
+      >
+        <Form layout="vertical">
+          <Form.Item
+            label="Rejection Reason"
+            required
+            extra="This reason will be communicated to the organisation owner."
+          >
+            <Input.TextArea
+              rows={4}
+              placeholder="Please provide a reason for rejection..."
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       {/* Tabs */}
       <Card>
@@ -779,9 +1068,9 @@ const AdminDashboard: React.FC = () => {
                   <div style={{ fontSize: 11, color: '#888' }}>Organization management without billing</div>
                 </div>
               </Option>
-              <Option value="agent_admin">
+              <Option value="team_lead">
                 <div>
-                  <strong>Agent Admin</strong>
+                  <strong>Team Lead</strong>
                   <div style={{ fontSize: 11, color: '#888' }}>Manage all agents regardless of creator</div>
                 </div>
               </Option>
@@ -956,6 +1245,22 @@ function getStatusColor(status: string): string {
       return 'gray';
     case 'past_due':
       return 'orange';
+    default:
+      return 'default';
+  }
+}
+
+function getApprovalStatusColor(status: string): string {
+  switch (status) {
+    case 'approved':
+    case 'active':
+      return 'green';
+    case 'pending':
+      return 'orange';
+    case 'rejected':
+      return 'red';
+    case 'suspended':
+      return 'volcano';
     default:
       return 'default';
   }

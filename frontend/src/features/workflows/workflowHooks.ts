@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workflowService } from './workflowService';
 import { message } from 'antd';
 import type { Workflow, WorkflowNode, WorkflowEdge } from '../../types/workflow';
+import { parseQuotaError } from '../../services/api';
 
 interface CreateWorkflowData {
   name: string;
@@ -32,9 +33,10 @@ export const useCreateWorkflow = () => {
       queryClient.invalidateQueries({ queryKey: ['workflows'] });
       message.success(`Workflow "${data.name}" saved successfully!`);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.log('useCreateWorkflow onError:', error);
-      message.error(error.message || 'Failed to save workflow');
+      const quotaMsg = parseQuotaError(error);
+      message.error(quotaMsg || error.message || 'Failed to save workflow');
     },
   });
 };

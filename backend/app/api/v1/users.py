@@ -3,7 +3,7 @@ API endpoints for user management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
@@ -54,6 +54,10 @@ class UserUpdate(BaseModel):
 
 class UserRoleAssign(BaseModel):
     role_id: UUID
+
+
+class UserRoleNameAssign(BaseModel):
+    role_name: str  # e.g. 'developer', 'team_lead', 'viewer'
 
 
 class UserRoleResponse(BaseModel):
@@ -261,6 +265,88 @@ async def update_current_user_profile(
         avatar_url=current_user.avatar_url,
         failed_login_attempts=current_user.failed_login_attempts,
         locked_until=current_user.locked_until,
+    )
+
+
+@router.patch("/{user_id}/role", response_model=UserRoleResponse)
+async def set_user_role_by_name(
+    user_id: UUID,
+    role_data: UserRoleNameAssign,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_org_admin),
+    effective_org_id: UUID = Depends(get_effective_organization_id),
+):
+    """
+    Set a user's role by role name (replaces any existing role).
+    Requires org admin permission.
+    """
+    # Verify user exists and is in effective org
+    user_result = await db.execute(
+        select(User).where(
+            User.id == user_id,
+            User.organization_id == effective_org_id,
+            User.deleted_at.is_(None),
+        )
+    )
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Cannot change role of platform admin
+    if user.is_platform_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot change role of a platform admin")
+
+    # Cannot change your own role
+    if user.id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
+
+    # Resolve role name — block assigning super_admin
+    valid_names = ['org_owner', 'org_admin', 'team_lead', 'developer', 'operator', 'viewer']
+    if role_data.role_name not in valid_names:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Valid roles: {', '.join(valid_names)}",
+        )
+
+    role_result = await db.execute(
+        select(Role).where(
+            Role.name == role_data.role_name,
+            Role.organization_id.is_(None),
+            Role.is_system_role == True,
+        )
+    )
+    role = role_result.scalar_one_or_none()
+
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    # One-role enforcement: clear existing roles
+    await db.execute(
+        delete(UserRole).where(
+            UserRole.user_id == user_id,
+            UserRole.organization_id == effective_org_id,
+        )
+    )
+
+    # Assign new role
+    user_role = UserRole(
+        user_id=user_id,
+        role_id=role.id,
+        organization_id=effective_org_id,
+        assigned_by=current_user.id,
+    )
+    db.add(user_role)
+    await db.commit()
+    await db.refresh(user_role)
+
+    return UserRoleResponse(
+        id=str(user_role.id),
+        role_id=str(role.id),
+        role_name=role.name,
+        role_display_name=role.display_name,
+        assigned_at=user_role.assigned_at,
+        assigned_by=str(current_user.id),
     )
 
 
@@ -582,19 +668,13 @@ async def assign_role_to_user(
             detail="Role not found or not assignable",
         )
 
-    # Check if user already has this role
-    existing = await db.execute(
-        select(UserRole).where(
+    # One-role enforcement: remove all existing org-scoped roles before assigning new one
+    await db.execute(
+        delete(UserRole).where(
             UserRole.user_id == user_id,
-            UserRole.role_id == role_data.role_id,
             UserRole.organization_id == effective_org_id,
         )
     )
-    if existing.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User already has this role",
-        )
 
     # Create role assignment
     user_role = UserRole(

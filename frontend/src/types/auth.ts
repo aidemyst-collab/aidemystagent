@@ -13,6 +13,7 @@ export interface User {
   updatedAt?: string;
   roles?: string[]; // RBAC role display names
   avatarUrl?: string;
+  orgApprovalStatus?: 'pending' | 'approved' | 'rejected' | string;
 }
 
 export interface Organization {

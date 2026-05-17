@@ -172,9 +172,9 @@ SYSTEM_ROLES = [
         ]
     },
     {
-        "name": "agent_admin",
-        "display_name": "Agent Admin",
-        "description": "Manage all agents regardless of creator",
+        "name": "team_lead",
+        "display_name": "Team Lead",
+        "description": "Manage all agents and coordinate developers within the organization",
         "scope": "organization",
         "is_system_role": True,
         "permissions": [

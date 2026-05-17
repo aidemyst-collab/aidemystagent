@@ -110,6 +110,9 @@ async def create_deployment(
             detail="You don't have access to this agent",
         )
 
+    from app.services.quota_service import check_deployments_quota
+    await check_deployments_quota(db, effective_org_id)
+
     # Get organization for slug
     org_result = await db.execute(
         select(Organization).where(Organization.id == effective_org_id)

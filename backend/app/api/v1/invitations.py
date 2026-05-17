@@ -1,7 +1,7 @@
 """
 API endpoints for user invitations management.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import List, Optional
@@ -15,6 +15,7 @@ from app.models.user import Organization, User, UserRole as UserRoleEnum
 from app.models.invitation import Invitation, InvitationStatus
 from app.models.role import Role, UserRole
 from app.api.deps import get_current_active_user, require_permission, require_org_admin
+from app.services.email_service import send_invitation_email
 
 
 # ============== Schemas ==============
@@ -160,6 +161,7 @@ async def get_invitation_response(
 @router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 async def create_invitation(
     invitation_data: InvitationCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
 ):
@@ -212,6 +214,12 @@ async def create_invitation(
             detail="Role not found or not assignable",
         )
 
+    # Get org name for the email
+    org_result = await db.execute(
+        select(Organization.name).where(Organization.id == current_user.organization_id)
+    )
+    org_name_for_email = org_result.scalar() or "your organization"
+
     # Create the invitation
     invitation = Invitation.create_invitation(
         organization_id=current_user.organization_id,
@@ -225,6 +233,17 @@ async def create_invitation(
     db.add(invitation)
     await db.commit()
     await db.refresh(invitation)
+
+    # Send invitation email in the background (non-blocking — failure doesn't affect response)
+    background_tasks.add_task(
+        send_invitation_email,
+        to_email=invitation.email,
+        inviter_name=current_user.full_name or current_user.email,
+        org_name=org_name_for_email,
+        role_name=role.display_name,
+        token=invitation.token,
+        personal_message=invitation_data.message,
+    )
 
     return await get_invitation_response(db, invitation)
 
@@ -342,6 +361,7 @@ async def revoke_invitation(
 @router.post("/{invitation_id}/resend", response_model=InvitationResponse)
 async def resend_invitation(
     invitation_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_org_admin),
 ):
@@ -377,6 +397,28 @@ async def resend_invitation(
 
     await db.commit()
     await db.refresh(invitation)
+
+    # Re-fetch role for display name
+    role_for_email_result = await db.execute(
+        select(Role).where(Role.id == invitation.role_id)
+    )
+    role_for_email = role_for_email_result.scalar_one_or_none()
+
+    # Re-fetch org name
+    org_for_email_result = await db.execute(
+        select(Organization.name).where(Organization.id == invitation.organization_id)
+    )
+    org_name_for_email = org_for_email_result.scalar() or "your organization"
+
+    background_tasks.add_task(
+        send_invitation_email,
+        to_email=invitation.email,
+        inviter_name=current_user.full_name or current_user.email,
+        org_name=org_name_for_email,
+        role_name=role_for_email.display_name if role_for_email else "Member",
+        token=invitation.token,
+        personal_message=None,
+    )
 
     return await get_invitation_response(db, invitation)
 
@@ -500,6 +542,9 @@ async def accept_invitation(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Organization is no longer active",
         )
+
+    from app.services.quota_service import check_users_quota
+    await check_users_quota(db, invitation.organization_id)
 
     # Create the new user
     new_user = User(

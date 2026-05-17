@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
@@ -123,6 +123,37 @@ async def get_analytics(
         for row in executions_over_time_result.all()
     ]
 
+    # Executions per day for last 30 days - filter by organization
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+
+    executions_30d_query = (
+        select(
+            func.date(AgentExecution.created_at).label("date"),
+            func.count(AgentExecution.id).label("count")
+        )
+        .where(
+            AgentExecution.organization_id == effective_org_id,
+            AgentExecution.created_at >= thirty_days_ago,
+        )
+        .group_by(func.date(AgentExecution.created_at))
+        .order_by(func.date(AgentExecution.created_at).asc())
+    )
+
+    if agent_id:
+        executions_30d_query = executions_30d_query.where(
+            AgentExecution.agent_id == agent_id
+        )
+
+    executions_30d_result = await db.execute(executions_30d_query)
+    executions_30d = [{"date": str(row[0]), "count": row[1]} for row in executions_30d_result.all()]
+
+    # Total token usage - filter by organization
+    token_result = await db.execute(
+        select(func.sum(AgentExecution.tokens_used))
+        .where(AgentExecution.organization_id == effective_org_id)
+    )
+    total_tokens = token_result.scalar() or 0
+
     return {
         "total_agents": total_agents,
         "total_executions": total_executions,
@@ -130,4 +161,6 @@ async def get_analytics(
         "success_rate": round(success_rate, 2),
         "executions_by_agent": executions_by_agent,
         "executions_over_time": executions_over_time,
+        "executions_30d": executions_30d,
+        "total_tokens_used": total_tokens,
     }

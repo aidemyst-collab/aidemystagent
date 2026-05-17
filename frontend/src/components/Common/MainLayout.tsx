@@ -27,7 +27,8 @@ import {
   ApiOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useAuthStore, usePermissions, useOrganizationSwitcher } from '../../features/auth/authStore';
+import { useAuthStore, usePermissions, useOrganizationSwitcher, useImpersonation } from '../../features/auth/authStore';
+import { ImpersonationBanner } from './ImpersonationBanner';
 import { useLogout, useInitializeOrganization } from '../../features/auth/authHooks';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api';
@@ -66,6 +67,7 @@ export const MainLayout = () => {
     switchOrganization,
     clearSwitch,
   } = useOrganizationSwitcher();
+  const { isImpersonating } = useImpersonation();
   const queryClient = useQueryClient();
 
   // Sidebar collapsed state - persisted in localStorage
@@ -112,133 +114,146 @@ export const MainLayout = () => {
     });
   };
 
-  const menuItems: MenuProps['items'] = [
-    {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-      onClick: () => navigate('/dashboard'),
-    },
-    {
-      key: '/agents',
-      icon: <RocketOutlined />,
-      label: 'Workflows',
-      onClick: () => navigate('/agents'),
-    },
-    {
-      key: '/tools',
-      icon: <ToolOutlined />,
-      label: 'Tools',
-      onClick: () => navigate('/tools'),
-    },
-    {
-      key: '/mcp-servers',
-      icon: <CloudServerOutlined />,
-      label: 'MCP Servers',
-      onClick: () => navigate('/mcp-servers'),
-    },
-    {
-      key: '/mcp-tools',
-      icon: <ApiOutlined />,
-      label: 'Dynamic Tools',
-      onClick: () => navigate('/mcp-tools'),
-    },
-    {
-      key: '/hosted-mcp-servers',
-      icon: <CloudServerOutlined />,
-      label: 'Hosted MCP',
-      onClick: () => navigate('/hosted-mcp-servers'),
-    },
-    ...(canAccess('credentials-access')
-      ? [
-          {
-            key: '/credentials',
-            icon: <KeyOutlined />,
-            label: 'Credentials',
-            onClick: () => navigate('/credentials'),
-          },
-        ]
-      : []),
-    {
-      key: '/templates',
-      icon: <FolderOutlined />,
-      label: 'Templates',
-      onClick: () => navigate('/templates'),
-    },
-    {
-      key: '/deployments',
-      icon: <CloudOutlined />,
-      label: 'Deployments',
-      onClick: () => navigate('/deployments'),
-    },
-    {
-      key: '/analytics',
-      icon: <BarChartOutlined />,
-      label: 'Analytics',
-      onClick: () => navigate('/analytics'),
-    },
-    // Organization Settings (for admins and creators)
-    ...(canAccess('user-management')
-      ? [
-          {
-            key: '/settings',
-            icon: <SettingOutlined />,
-            label: 'Settings',
-            onClick: () => navigate('/settings'),
-          },
-        ]
-      : []),
-    // Organization admin section
-    ...(canAccess('user-management')
-      ? [
-          { type: 'divider' as const },
-          {
-            key: '/users',
-            icon: <TeamOutlined />,
-            label: 'Users',
-            onClick: () => navigate('/users'),
-          },
-        ]
-      : []),
-    ...(canAccess('invite-users')
-      ? [
-          {
-            key: '/invitations',
-            icon: <MailOutlined />,
-            label: 'Invitations',
-            onClick: () => navigate('/invitations'),
-          },
-        ]
-      : []),
-    ...(canAccess('audit-logs')
-      ? [
-          {
-            key: '/audit-logs',
-            icon: <AuditOutlined />,
-            label: 'User Audit',
-            onClick: () => navigate('/audit-logs'),
-          },
-          {
-            key: '/execution-logs',
-            icon: <HistoryOutlined />,
-            label: 'Execution Logs',
-            onClick: () => navigate('/execution-logs'),
-          },
-        ]
-      : []),
-    // Platform admin section
-    ...(isPlatformAdmin
-      ? [
-          { type: 'divider' as const },
-          {
-            key: '/admin',
-            icon: <CrownOutlined />,
-            label: 'Platform Admin',
-            onClick: () => navigate('/admin'),
-          },
-        ]
-      : []),
-  ];
+  // Platform admins get a focused admin-only menu; regular users get the full org menu
+  const menuItems: MenuProps['items'] = isPlatformAdmin
+    ? [
+        // Platform Admin menu — only platform-scoped items
+        { type: 'divider' as const },
+        {
+          key: '/admin',
+          icon: <CrownOutlined />,
+          label: 'Platform Admin',
+          onClick: () => navigate('/admin'),
+        },
+        {
+          key: '/users',
+          icon: <TeamOutlined />,
+          label: 'All Users',
+          onClick: () => navigate('/users'),
+        },
+        {
+          key: '/audit-logs',
+          icon: <AuditOutlined />,
+          label: 'Audit Logs',
+          onClick: () => navigate('/audit-logs'),
+        },
+      ]
+    : [
+        // Regular org-user menu
+        {
+          key: '/dashboard',
+          icon: <DashboardOutlined />,
+          label: 'Dashboard',
+          onClick: () => navigate('/dashboard'),
+        },
+        {
+          key: '/agents',
+          icon: <RocketOutlined />,
+          label: 'Workflows',
+          onClick: () => navigate('/agents'),
+        },
+        {
+          key: '/tools',
+          icon: <ToolOutlined />,
+          label: 'Tools',
+          onClick: () => navigate('/tools'),
+        },
+        {
+          key: '/mcp-servers',
+          icon: <CloudServerOutlined />,
+          label: 'MCP Servers',
+          onClick: () => navigate('/mcp-servers'),
+        },
+        {
+          key: '/mcp-tools',
+          icon: <ApiOutlined />,
+          label: 'Dynamic Tools',
+          onClick: () => navigate('/mcp-tools'),
+        },
+        {
+          key: '/hosted-mcp-servers',
+          icon: <CloudServerOutlined />,
+          label: 'Hosted MCP',
+          onClick: () => navigate('/hosted-mcp-servers'),
+        },
+        ...(canAccess('credentials-access')
+          ? [
+              {
+                key: '/credentials',
+                icon: <KeyOutlined />,
+                label: 'Credentials',
+                onClick: () => navigate('/credentials'),
+              },
+            ]
+          : []),
+        {
+          key: '/templates',
+          icon: <FolderOutlined />,
+          label: 'Templates',
+          onClick: () => navigate('/templates'),
+        },
+        {
+          key: '/deployments',
+          icon: <CloudOutlined />,
+          label: 'Deployments',
+          onClick: () => navigate('/deployments'),
+        },
+        {
+          key: '/analytics',
+          icon: <BarChartOutlined />,
+          label: 'Analytics',
+          onClick: () => navigate('/analytics'),
+        },
+        // Organization Settings
+        ...(canAccess('user-management')
+          ? [
+              {
+                key: '/settings',
+                icon: <SettingOutlined />,
+                label: 'Settings',
+                onClick: () => navigate('/settings'),
+              },
+            ]
+          : []),
+        // Organization admin section
+        ...(canAccess('user-management')
+          ? [
+              { type: 'divider' as const },
+              {
+                key: '/users',
+                icon: <TeamOutlined />,
+                label: 'Users',
+                onClick: () => navigate('/users'),
+              },
+            ]
+          : []),
+        ...(canAccess('invite-users')
+          ? [
+              {
+                key: '/invitations',
+                icon: <MailOutlined />,
+                label: 'Invitations',
+                onClick: () => navigate('/invitations'),
+              },
+            ]
+          : []),
+        ...(canAccess('audit-logs')
+          ? [
+              {
+                key: '/audit-logs',
+                icon: <AuditOutlined />,
+                label: 'User Audit',
+                onClick: () => navigate('/audit-logs'),
+              },
+              {
+                key: '/execution-logs',
+                icon: <HistoryOutlined />,
+                label: 'Execution Logs',
+                onClick: () => navigate('/execution-logs'),
+              },
+            ]
+          : []),
+      ];
 
   const userMenuItems: MenuProps['items'] = [
     {
@@ -267,7 +282,9 @@ export const MainLayout = () => {
   const selectedKey = '/' + location.pathname.split('/')[1];
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <>
+      <ImpersonationBanner />
+      <Layout style={{ minHeight: '100vh', paddingTop: isImpersonating ? 44 : 0 }}>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -427,7 +444,10 @@ export const MainLayout = () => {
                   {isPlatformAdmin && <Tag color="gold" style={{ margin: 0 }}>Admin</Tag>}
                 </div>
                 <Text type="secondary" className="text-xs leading-tight">
-                  {user?.roles?.length ? user.roles[0] : user?.role || 'Member'}
+                  {(() => {
+                    const r = user?.roles?.length ? user.roles[0] : user?.role || 'Member';
+                    return r === 'Agent Admin' ? 'Team Lead' : r;
+                  })()}
                 </Text>
               </div>
             </div>
@@ -444,6 +464,7 @@ export const MainLayout = () => {
           <Outlet />
         </Content>
       </Layout>
-    </Layout>
+      </Layout>
+    </>
   );
 };

@@ -185,3 +185,7 @@ class AuditAction:
     INVITATION_ACCEPT = "invitation.accept"
     INVITATION_REVOKE = "invitation.revoke"
     INVITATION_EXPIRE = "invitation.expire"
+
+    # Impersonation actions
+    IMPERSONATE_START = "user.impersonate_start"
+    IMPERSONATE_END = "user.impersonate_end"

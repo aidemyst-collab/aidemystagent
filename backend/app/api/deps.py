@@ -8,7 +8,7 @@ from typing import Optional, List, Callable
 from app.core.database import get_db
 from app.core.security import decode_token
 from app.core.logging_config import logger
-from app.models.user import User
+from app.models.user import User, Organization
 from app.services.permission_service import PermissionService
 
 security = HTTPBearer()
@@ -175,6 +175,32 @@ def require_all_permissions(permissions: List[str]):
     return permission_checker
 
 
+async def require_approved_org(
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Blocks access for users whose organisation is not yet approved.
+    Platform admins bypass this check.
+    """
+    # Platform admins can always pass through
+    if current_user.is_platform_admin:
+        return current_user
+
+    # Load the user's organisation
+    result = await db.execute(
+        select(Organization).where(Organization.id == current_user.organization_id)
+    )
+    org = result.scalar_one_or_none()
+
+    if not org or org.approval_status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="organization_pending_approval",
+        )
+    return current_user
+
+
 async def require_platform_admin(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
@@ -225,6 +251,39 @@ async def require_org_admin(
             detail="Organization admin access required",
         )
     return current_user
+
+
+async def get_impersonation_context(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Optional[str]:
+    """
+    Returns the admin user ID string if the current request is using an
+    impersonation token; None for normal requests.
+
+    Usage:
+        @router.post("/change-password")
+        async def change_password(
+            _: None = Depends(block_during_impersonation()),
+            ...
+        ):
+    """
+    payload = decode_token(credentials.credentials)
+    if payload:
+        return payload.get("impersonated_by")
+    return None
+
+
+def block_during_impersonation(
+    message: str = "This action is not available during impersonation",
+):
+    """
+    Dependency factory that blocks destructive/sensitive endpoints when the
+    caller is using an impersonation token (e.g. billing, password changes).
+    """
+    async def _guard(impersonated_by: Optional[str] = Depends(get_impersonation_context)) -> None:
+        if impersonated_by:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message)
+    return _guard
 
 
 def get_client_ip(request: Request) -> Optional[str]:

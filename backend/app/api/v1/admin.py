@@ -173,7 +173,7 @@ class CreateUserAdminRequest(BaseModel):
     password: str = Field(..., min_length=8, description="User password")
     full_name: Optional[str] = Field(None, description="User full name")
     organization_id: UUID = Field(..., description="Organization ID to add user to")
-    role: str = Field("developer", description="RBAC role: org_owner, org_admin, agent_admin, developer, operator, or viewer")
+    role: str = Field("developer", description="RBAC role: org_owner, org_admin, team_lead, developer, operator, or viewer")
     is_platform_admin: bool = Field(False, description="Whether user is a platform admin")
     is_active: bool = Field(True, description="Whether user is active")
 
@@ -963,7 +963,7 @@ async def create_user_admin(
         )
 
     # Valid RBAC roles
-    valid_rbac_roles = ['org_owner', 'org_admin', 'agent_admin', 'developer', 'operator', 'viewer']
+    valid_rbac_roles = ['org_owner', 'org_admin', 'team_lead', 'developer', 'operator', 'viewer']
     rbac_role_name = user_data.role.lower()
 
     if rbac_role_name not in valid_rbac_roles:
@@ -976,7 +976,7 @@ async def create_user_admin(
     rbac_to_legacy = {
         "org_owner": UserRoleEnum.ADMIN,
         "org_admin": UserRoleEnum.ADMIN,
-        "agent_admin": UserRoleEnum.CREATOR,
+        "team_lead": UserRoleEnum.CREATOR,
         "developer": UserRoleEnum.CREATOR,
         "operator": UserRoleEnum.CREATOR,
         "viewer": UserRoleEnum.VIEWER,

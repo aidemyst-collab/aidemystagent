@@ -40,6 +40,18 @@ def create_refresh_token(data: Dict[str, Any]) -> str:
     return encoded_jwt
 
 
+def create_impersonation_token(target_user_id: str, admin_user_id: str) -> str:
+    """Create a short-lived impersonation token. Valid for 30 minutes."""
+    expire = datetime.utcnow() + timedelta(minutes=30)
+    payload = {
+        "sub": target_user_id,
+        "impersonated_by": admin_user_id,
+        "exp": expire,
+        "type": "access",
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """Decode and verify a JWT token."""
     try:

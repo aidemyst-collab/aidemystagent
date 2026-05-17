@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { agentService } from './agentService';
 import { message } from 'antd';
+import { parseQuotaError } from '../../services/api';
 
 export const useCreateAgent = () => {
   const queryClient = useQueryClient();
@@ -15,9 +16,10 @@ export const useCreateAgent = () => {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       message.success(`Agent "${data.name}" saved successfully!`);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.log('useCreateAgent onError:', error);
-      message.error(error.message || 'Failed to save agent');
+      const quotaMsg = parseQuotaError(error);
+      message.error(quotaMsg || error.message || 'Failed to save agent');
     },
   });
 };

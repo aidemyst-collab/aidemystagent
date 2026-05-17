@@ -9,6 +9,10 @@ interface AuthState {
   // Platform admin organization switching
   switchedOrganization: Organization | null;
   isAuthenticated: boolean;
+  // Impersonation state
+  isImpersonating: boolean;
+  impersonatedUser: User | null;
+  realAdminTokens: AuthTokens | null;
   setAuth: (user: User, tokens: AuthTokens) => void;
   setOrganization: (organization: Organization) => void;
   updateUser: (user: Partial<User>) => void;
@@ -18,6 +22,9 @@ interface AuthState {
   switchOrganization: (org: Organization | null) => void;
   getEffectiveOrganization: () => Organization | null;
   getSwitchedOrganizationId: () => string | null;
+  // Impersonation
+  startImpersonation: (targetUser: User, impersonationAccessToken: string) => void;
+  endImpersonation: () => void;
   // Permission utilities
   isPlatformAdmin: () => boolean;
   isOrgAdmin: () => boolean;
@@ -34,11 +41,11 @@ const featureAccessMap: Record<string, string[]> = {
   'invite-users': ['Super Admin', 'Organization Owner', 'Organization Admin'],
   'audit-logs': ['Super Admin', 'Organization Owner', 'Organization Admin'],
   'subscription-management': ['Super Admin'],
-  'agent-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
-  'tool-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
-  'deployment-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Operator'],
-  'analytics': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer', 'Operator', 'Viewer'],
-  'credentials-access': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Agent Admin', 'Developer'],
+  'agent-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Team Lead', 'Developer'],
+  'tool-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Team Lead', 'Developer'],
+  'deployment-management': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Team Lead', 'Operator'],
+  'analytics': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Team Lead', 'Developer', 'Operator', 'Viewer'],
+  'credentials-access': ['Super Admin', 'Organization Owner', 'Organization Admin', 'Team Lead', 'Developer'],
   'settings': ['Super Admin', 'Organization Owner', 'Organization Admin'],
 };
 
@@ -50,6 +57,9 @@ export const useAuthStore = create<AuthState>()(
       organization: null,
       switchedOrganization: null,
       isAuthenticated: false,
+      isImpersonating: false,
+      impersonatedUser: null,
+      realAdminTokens: null,
 
       setAuth: (user, tokens) =>
         set({ user, tokens, isAuthenticated: true }),
@@ -63,9 +73,37 @@ export const useAuthStore = create<AuthState>()(
         })),
 
       logout: () =>
-        set({ user: null, tokens: null, organization: null, switchedOrganization: null, isAuthenticated: false }),
+        set({
+          user: null,
+          tokens: null,
+          organization: null,
+          switchedOrganization: null,
+          isAuthenticated: false,
+          isImpersonating: false,
+          impersonatedUser: null,
+          realAdminTokens: null,
+        }),
 
       updateTokens: (tokens) => set({ tokens }),
+
+      // Impersonation
+      startImpersonation: (targetUser, impersonationAccessToken) =>
+        set((state) => ({
+          realAdminTokens: state.tokens,
+          tokens: state.tokens
+            ? { ...state.tokens, accessToken: impersonationAccessToken }
+            : { accessToken: impersonationAccessToken, refreshToken: '' },
+          impersonatedUser: targetUser,
+          isImpersonating: true,
+        })),
+
+      endImpersonation: () =>
+        set((state) => ({
+          tokens: state.realAdminTokens,
+          impersonatedUser: null,
+          isImpersonating: false,
+          realAdminTokens: null,
+        })),
 
       // Organization switching for platform admins
       switchOrganization: (org) => set({ switchedOrganization: org }),
@@ -135,6 +173,9 @@ export const useAuthStore = create<AuthState>()(
         organization: state.organization,
         switchedOrganization: state.switchedOrganization,
         isAuthenticated: state.isAuthenticated,
+        isImpersonating: state.isImpersonating,
+        impersonatedUser: state.impersonatedUser,
+        realAdminTokens: state.realAdminTokens,
       }),
     }
   )
@@ -157,6 +198,15 @@ export const usePermissions = () => {
     hasAnyRole,
     canAccess,
   };
+};
+
+// Hook for impersonation state and actions
+export const useImpersonation = () => {
+  const isImpersonating = useAuthStore((state) => state.isImpersonating);
+  const impersonatedUser = useAuthStore((state) => state.impersonatedUser);
+  const startImpersonation = useAuthStore((state) => state.startImpersonation);
+  const endImpersonation = useAuthStore((state) => state.endImpersonation);
+  return { isImpersonating, impersonatedUser, startImpersonation, endImpersonation };
 };
 
 // Hook for organization switching (platform admins only)

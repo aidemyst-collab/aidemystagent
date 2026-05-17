@@ -93,6 +93,9 @@ async def execute_agent(
             detail="You don't have access to this agent",
         )
 
+    from app.services.quota_service import check_executions_quota
+    await check_executions_quota(db, effective_org_id)
+
     # Execute agent
     import time
     start_time = time.time()

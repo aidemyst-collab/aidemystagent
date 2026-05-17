@@ -4,7 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.logging_config import logger
-from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, organization_settings, users, rag, admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers, hosted_mcp_servers
+from app.api.v1 import auth, agents, tools, execute, templates, deployments, versions, analytics, dashboard, workflows, credentials, organizations, organization_settings, users, rag, admin, org_admin, invitations, audit, twilio, voice, whatsapp, public_invoke, mcp_servers, dynamic_mcp_servers, hosted_mcp_servers
 from app.middleware.error_handler import (
     http_exception_handler,
     validation_exception_handler,
@@ -56,6 +56,7 @@ app.include_router(versions.router, prefix=f"{settings.API_V1_PREFIX}", tags=["v
 app.include_router(analytics.router, prefix=f"{settings.API_V1_PREFIX}", tags=["analytics"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_PREFIX}", tags=["dashboard"])
 app.include_router(admin.router, prefix=f"{settings.API_V1_PREFIX}/admin", tags=["admin"])
+app.include_router(org_admin.router, prefix=f"{settings.API_V1_PREFIX}/admin/organizations", tags=["admin-org-approval"])
 app.include_router(invitations.router, prefix=f"{settings.API_V1_PREFIX}/invitations", tags=["invitations"])
 app.include_router(audit.router, prefix=f"{settings.API_V1_PREFIX}/audit", tags=["audit"])
 app.include_router(twilio.router, prefix=f"{settings.API_V1_PREFIX}/twilio", tags=["twilio"])

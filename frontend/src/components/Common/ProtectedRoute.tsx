@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../features/auth/authStore';
 import { ReactNode } from 'react';
 
@@ -19,10 +19,19 @@ function isTokenExpired(token: string | null | undefined): boolean {
 
 export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
   const { isAuthenticated, user, tokens, logout } = useAuthStore();
+  const location = useLocation();
 
   if (!isAuthenticated || isTokenExpired(tokens?.accessToken)) {
     if (isAuthenticated) logout();
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect org-pending users away from all protected routes
+  if (
+    user?.orgApprovalStatus === 'pending' &&
+    location.pathname !== '/pending-approval'
+  ) {
+    return <Navigate to="/pending-approval" replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {

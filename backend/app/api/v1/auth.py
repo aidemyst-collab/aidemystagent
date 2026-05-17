@@ -14,11 +14,12 @@ from app.core.security import (
     get_password_hash,
     create_access_token,
     create_refresh_token,
+    create_impersonation_token,
     decode_token,
 )
 from app.models.user import User, Organization
 from app.models.audit_log import AuditLog, AuditAction
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, require_platform_admin, get_impersonation_context
 
 router = APIRouter()
 
@@ -63,6 +64,11 @@ class UserResponseAuth(BaseModel):
     isActive: bool = True
     emailVerified: bool = False
     createdAt: datetime
+    # Org approval gate status — "pending", "active", "rejected", "suspended"
+    orgApprovalStatus: Optional[str] = None
+    # Impersonation context — only populated when the caller uses an impersonation token
+    isImpersonated: bool = False
+    impersonatedBy: Optional[str] = None  # Admin user ID that started the session
 
     class Config:
         from_attributes = True
@@ -144,7 +150,12 @@ async def assign_role_to_user(db: AsyncSession, user_id: uuid.UUID, role_name: s
         return False
 
 
-def build_user_response(user: User, roles: List[str], org_name: Optional[str] = None) -> UserResponseAuth:
+def build_user_response(
+    user: User,
+    roles: List[str],
+    org_name: Optional[str] = None,
+    org_approval_status: Optional[str] = None,
+) -> UserResponseAuth:
     """Build user response from user model."""
     return UserResponseAuth(
         id=str(user.id),
@@ -158,6 +169,7 @@ def build_user_response(user: User, roles: List[str], org_name: Optional[str] = 
         isActive=getattr(user, 'is_active', True),
         emailVerified=getattr(user, 'email_verified', False),
         createdAt=user.created_at,
+        orgApprovalStatus=org_approval_status,
     )
 
 
@@ -203,20 +215,22 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
                 detail="Organization name already exists",
             )
 
-        # Create new organization
+        # Create new organization — starts PENDING until a platform admin approves it
         organization = Organization(
             name=user_data.organization_name,
             slug=generate_slug(user_data.organization_name),
+            approval_status="pending",
         )
         db.add(organization)
         await db.flush()
         org_name = organization.name
     else:
-        # No organization provided - create a default one for the user
+        # No organization provided - create a default one for the user (also starts PENDING)
         default_org_name = f"{user_data.email.split('@')[0]}'s Organization"
         organization = Organization(
             name=default_org_name,
             slug=generate_slug(default_org_name),
+            approval_status="pending",
         )
         db.add(organization)
         await db.flush()
@@ -263,12 +277,15 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     # Get user roles
     roles = await get_user_roles(db, user)
 
+    # Capture org approval status to include in response
+    org_approval_status = getattr(organization, 'approval_status', None)
+
     # Create tokens
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return RegisterResponse(
-        user=build_user_response(user, roles, org_name),
+        user=build_user_response(user, roles, org_name, org_approval_status),
         tokens=TokenPair(
             accessToken=access_token,
             refreshToken=refresh_token,
@@ -367,15 +384,16 @@ async def login(
     # Get user roles
     roles = await get_user_roles(db, user)
 
-    # Get org name
+    # Get org name and approval status
     org_name = user.organization.name if user.organization else None
+    org_approval_status = getattr(user.organization, 'approval_status', None) if user.organization else None
 
     # Create tokens
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return LoginResponse(
-        user=build_user_response(user, roles, org_name),
+        user=build_user_response(user, roles, org_name, org_approval_status),
         tokens=TokenPair(
             accessToken=access_token,
             refreshToken=refresh_token,
@@ -434,6 +452,120 @@ async def logout(
     return {"message": "Logged out successfully"}
 
 
+class ImpersonateResponse(BaseModel):
+    accessToken: str
+    targetUser: UserResponseAuth
+
+
+# /impersonate/end must be defined BEFORE /impersonate/{user_id} so FastAPI
+# doesn't treat the literal string "end" as a user_id path segment.
+@router.post("/impersonate/end")
+async def end_impersonation(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    impersonated_by: Optional[str] = Depends(get_impersonation_context),
+):
+    """
+    End an active impersonation session.
+    The client is responsible for restoring the real admin token after calling this.
+    """
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    db.add(AuditLog.create_log(
+        action=AuditAction.IMPERSONATE_END,
+        resource_type="user",
+        resource_id=str(current_user.id),
+        resource_name=current_user.email,
+        user_id=current_user.id,
+        user_email=current_user.email,
+        organization_id=current_user.organization_id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        metadata={"admin_user_id": impersonated_by},
+    ))
+    await db.commit()
+    return {"message": "Impersonation ended"}
+
+
+@router.post("/impersonate/{user_id}", response_model=ImpersonateResponse)
+async def impersonate_user(
+    user_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_platform_admin),
+    current_impersonation: Optional[str] = Depends(get_impersonation_context),
+):
+    """
+    Platform Admin only: start impersonating a user for troubleshooting.
+    Issues a 30-minute impersonation token scoped to the target user.
+    Blocked if the caller is already using an impersonation token.
+    """
+    if current_impersonation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot impersonate while already in an impersonation session. End the current session first.",
+        )
+
+    # Load target user
+    try:
+        target_uuid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user ID")
+
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.organization))
+        .where(User.id == target_uuid, User.deleted_at.is_(None))
+    )
+    target_user = result.scalar_one_or_none()
+
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    # Platform admins cannot impersonate other platform admins
+    if target_user.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot impersonate another Platform Admin",
+        )
+
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    token = create_impersonation_token(str(target_user.id), str(admin_user.id))
+
+    db.add(AuditLog.create_log(
+        action=AuditAction.IMPERSONATE_START,
+        resource_type="user",
+        resource_id=str(target_user.id),
+        resource_name=target_user.email,
+        user_id=admin_user.id,
+        user_email=admin_user.email,
+        organization_id=target_user.organization_id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        metadata={
+            "admin_user_id": str(admin_user.id),
+            "admin_email": admin_user.email,
+            "target_user_id": str(target_user.id),
+            "target_email": target_user.email,
+        },
+    ))
+    await db.commit()
+
+    roles = await get_user_roles(db, target_user)
+    org_name = target_user.organization.name if target_user.organization else None
+    target_response = UserResponseAuth(
+        **build_user_response(target_user, roles, org_name).model_dump(),
+        isImpersonated=True,
+        impersonatedBy=str(admin_user.id),
+    )
+
+    return ImpersonateResponse(accessToken=token, targetUser=target_response)
+
+
 @router.post("/reset-password")
 async def reset_password(data: PasswordResetRequest, db: AsyncSession = Depends(get_db)):
     """Request password reset."""
@@ -446,21 +578,28 @@ async def reset_password(data: PasswordResetRequest, db: AsyncSession = Depends(
 async def get_current_user_info(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
+    impersonated_by: Optional[str] = Depends(get_impersonation_context),
 ):
-    """Get current user info."""
-    # Load organization
+    """Get current user info. Includes impersonation context when applicable."""
     org_name = None
+    org_approval_status = None
     if current_user.organization_id:
         org_result = await db.execute(
             select(Organization).where(Organization.id == current_user.organization_id)
         )
         org = org_result.scalar_one_or_none()
-        org_name = org.name if org else None
+        if org:
+            org_name = org.name
+            org_approval_status = getattr(org, 'approval_status', None)
 
-    # Get user roles
     roles = await get_user_roles(db, current_user)
+    base = build_user_response(current_user, roles, org_name, org_approval_status)
 
-    return build_user_response(current_user, roles, org_name)
+    return UserResponseAuth(
+        **base.model_dump(),
+        isImpersonated=impersonated_by is not None,
+        impersonatedBy=impersonated_by,
+    )
 
 
 @router.post("/repair-my-roles")

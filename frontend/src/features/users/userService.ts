@@ -194,6 +194,11 @@ export const userService = {
     });
   },
 
+  // Set (replace) user role — RBAC one-role-per-user semantics
+  setUserRole: async (userId: string, roleName: string): Promise<void> => {
+    await apiClient.patch(`/users/${userId}/role`, { role_name: roleName });
+  },
+
   // Remove role from user
   removeRole: async (userId: string, roleId: string): Promise<{ message: string }> => {
     return apiClient.delete(`/users/${userId}/roles/${roleId}`);

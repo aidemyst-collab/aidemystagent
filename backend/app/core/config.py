@@ -73,6 +73,16 @@ class Settings(BaseSettings):
     ACR_USERNAME: str = ""
     ACR_PASSWORD: str = ""
 
+    # Email / SMTP (Azure ACS SMTP relay or any SMTP provider)
+    EMAIL_ENABLED: bool = False  # Set to True in production
+    SMTP_HOST: str = ""          # e.g. smtp.azurecomm.net
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = "noreply@agentstudio365.com"
+    SMTP_FROM_NAME: str = "AgentStudio"
+    FRONTEND_URL: str = "https://agentstudio365.com"
+
     class Config:
         env_file = ".env"
         case_sensitive = True

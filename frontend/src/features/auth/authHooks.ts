@@ -22,7 +22,11 @@ export const useLogin = () => {
         console.error('Failed to fetch organization details:', error);
       }
 
-      navigate('/dashboard');
+      if (response.user?.orgApprovalStatus === 'pending') {
+        navigate('/pending-approval');
+      } else {
+        navigate('/dashboard');
+      }
     },
   });
 };
@@ -45,7 +49,11 @@ export const useRegister = () => {
         console.error('Failed to fetch organization details:', error);
       }
 
-      navigate('/dashboard');
+      if (response.user?.orgApprovalStatus === 'pending') {
+        navigate('/pending-approval');
+      } else {
+        navigate('/dashboard');
+      }
     },
   });
 };

@@ -30,7 +30,7 @@ import {
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '../features/users/userService';
-import type { OrgUser, OrgRole } from '../features/users/userService';
+import type { OrgUser } from '../features/users/userService';
 import { usePermissions } from '../features/auth/authStore';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -63,11 +63,6 @@ export const Users: React.FC = () => {
       search: search || undefined,
       isActive: statusFilter,
     }),
-  });
-
-  const { data: roles } = useQuery({
-    queryKey: ['user-roles'],
-    queryFn: userService.getRoles,
   });
 
   // Mutations
@@ -116,11 +111,11 @@ export const Users: React.FC = () => {
   });
 
   const assignRole = useMutation({
-    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
-      userService.assignRole(userId, roleId),
+    mutationFn: ({ userId, roleName }: { userId: string; roleName: string }) =>
+      userService.setUserRole(userId, roleName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      message.success('Role assigned');
+      message.success('Role updated');
       setRoleModalVisible(false);
       setSelectedUser(null);
       setSelectedRoleId('');
@@ -130,39 +125,37 @@ export const Users: React.FC = () => {
     },
   });
 
-  const removeRole = useMutation({
-    mutationFn: ({ userId, roleId }: { userId: string; roleId: string }) =>
-      userService.removeRole(userId, roleId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      message.success('Role removed');
-    },
-    onError: () => {
-      message.error('Failed to remove role');
-    },
-  });
+  const roleColors: Record<string, string> = {
+    'Org Owner': 'gold',
+    'Org Admin': 'orange',
+    'Team Lead': 'purple',
+    'Developer': 'blue',
+    'Operator': 'cyan',
+    'Viewer': 'default',
+    // Legacy display name mappings
+    'Organization Owner': 'gold',
+    'Organization Admin': 'orange',
+    'Agent Admin': 'purple',
+    'Super Admin': 'gold',
+  };
 
   const getRoleColor = (roleName: string) => {
-    const colorMap: Record<string, string> = {
-      'Super Admin': 'gold',
-      'Organization Owner': 'purple',
-      'Organization Admin': 'red',
-      'Agent Admin': 'blue',
-      'Developer': 'green',
-      'Operator': 'cyan',
-      'Viewer': 'default',
-    };
-    return colorMap[roleName] || 'default';
+    // Guard: map old display name to new one
+    const normalized = roleName === 'Agent Admin' ? 'Team Lead' : roleName;
+    return roleColors[normalized] || 'default';
   };
 
   const openRoleModal = (user: OrgUser) => {
     setSelectedUser(user);
+    // Pre-select the user's current role (name field, not id) so the dropdown shows it
+    const currentRoleName = user.roles.length > 0 ? user.roles[0].name : '';
+    setSelectedRoleId(currentRoleName);
     setRoleModalVisible(true);
   };
 
   const handleAssignRole = () => {
     if (selectedUser && selectedRoleId) {
-      assignRole.mutate({ userId: selectedUser.id, roleId: selectedRoleId });
+      assignRole.mutate({ userId: selectedUser.id, roleName: selectedRoleId });
     }
   };
 
@@ -195,26 +188,24 @@ export const Users: React.FC = () => {
       key: 'roles',
       render: (_: unknown, record: OrgUser) => (
         <Space wrap>
-          {record.roles.map((role) => (
-            <Tag
-              key={role.id}
-              color={getRoleColor(role.displayName)}
-              closable={record.roles.length > 1}
-              onClose={(e) => {
-                e.preventDefault();
-                removeRole.mutate({ userId: record.id, roleId: role.id });
-              }}
-            >
-              {role.displayName}
-            </Tag>
-          ))}
+          {record.roles.map((role) => {
+            const displayName = role.displayName === 'Agent Admin' ? 'Team Lead' : role.displayName;
+            return (
+              <Tag
+                key={role.id}
+                color={getRoleColor(displayName)}
+              >
+                {displayName}
+              </Tag>
+            );
+          })}
           <Button
             size="small"
             type="dashed"
             icon={<PlusOutlined />}
             onClick={() => openRoleModal(record)}
           >
-            Add
+            Set
           </Button>
         </Space>
       ),
@@ -375,9 +366,9 @@ export const Users: React.FC = () => {
         />
       </Card>
 
-      {/* Assign Role Modal */}
+      {/* Set Role Modal */}
       <Modal
-        title={`Assign Role to ${selectedUser?.fullName || selectedUser?.email}`}
+        title={`Set Role for ${selectedUser?.fullName || selectedUser?.email}`}
         open={roleModalVisible}
         onCancel={() => {
           setRoleModalVisible(false);
@@ -385,36 +376,23 @@ export const Users: React.FC = () => {
           setSelectedRoleId('');
         }}
         onOk={handleAssignRole}
-        okText="Assign Role"
+        okText="Set Role"
         okButtonProps={{ disabled: !selectedRoleId, loading: assignRole.isPending }}
       >
         <Form layout="vertical">
-          <Form.Item label="Select Role">
+          <Form.Item label="Role">
             <Select
-              placeholder="Choose a role to assign"
-              value={selectedRoleId}
+              placeholder="Choose a role"
+              value={selectedRoleId || undefined}
               onChange={setSelectedRoleId}
               style={{ width: '100%' }}
             >
-              {roles
-                ?.filter(
-                  (role: OrgRole) =>
-                    !selectedUser?.roles.some((ur) => ur.id === role.id)
-                )
-                .map((role: OrgRole) => (
-                  <Option key={role.id} value={role.id}>
-                    <div>
-                      <Text strong>{role.displayName}</Text>
-                      {role.description && (
-                        <div>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {role.description}
-                          </Text>
-                        </div>
-                      )}
-                    </div>
-                  </Option>
-                ))}
+              <Option value="org_owner">Org Owner</Option>
+              <Option value="org_admin">Org Admin</Option>
+              <Option value="team_lead">Team Lead</Option>
+              <Option value="developer">Developer</Option>
+              <Option value="operator">Operator</Option>
+              <Option value="viewer">Viewer</Option>
             </Select>
           </Form.Item>
         </Form>

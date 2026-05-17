@@ -5,7 +5,16 @@ from datetime import datetime
 import uuid
 import enum
 
+
 from app.core.database import Base
+
+
+class OrgApprovalStatus(str, enum.Enum):
+    """Approval status for an organisation (Milestone 1 RBAC)."""
+    PENDING = "pending"
+    ACTIVE = "active"
+    REJECTED = "rejected"
+    SUSPENDED = "suspended"
 
 
 class UserRole(str, enum.Enum):
@@ -62,6 +71,12 @@ class Organization(Base):
 
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
+
+    # Approval gate (Milestone 1 RBAC)
+    approval_status = Column(String(20), default="active", nullable=False, index=True)
+    approval_rejected_reason = Column(Text, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Soft delete
     deleted_at = Column(DateTime)

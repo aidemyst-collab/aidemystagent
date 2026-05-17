@@ -25,6 +25,7 @@ import AuditLogs from './pages/AuditLogs';
 import ExecutionLogs from './pages/ExecutionLogs';
 import AcceptInvitation from './pages/AcceptInvitation';
 import { OrganizationSettingsPage } from './pages/OrganizationSettings';
+import { PendingApproval } from './pages/PendingApproval';
 import { MainLayout } from './components/Common/MainLayout';
 import { ProtectedRoute, FeatureRoute } from './components/Common/ProtectedRoute';
 
@@ -80,6 +81,9 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/invitations/accept/:token" element={<AcceptInvitation />} />
+
+              {/* Semi-protected: authenticated but org pending approval */}
+              <Route path="/pending-approval" element={<PendingApproval />} />
 
               {/* Protected routes */}
               <Route

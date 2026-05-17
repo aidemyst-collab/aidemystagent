@@ -34,6 +34,9 @@ async def create_agent(
     _: None = Depends(require_permission("agents:create")),
 ):
     """Create a new agent."""
+    from app.services.quota_service import check_agents_quota
+    await check_agents_quota(db, effective_org_id)
+
     agent = Agent(
         name=agent_data.name,
         description=agent_data.description,
