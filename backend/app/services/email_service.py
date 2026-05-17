@@ -1,13 +1,10 @@
 """
 Email service for AgentStudio.
-Uses aiosmtplib for async SMTP delivery.
-Compatible with Azure ACS SMTP relay, SendGrid, and standard SMTP providers.
+Uses Azure Communication Services (ACS) Email SDK for delivery.
 """
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from typing import Optional
 
-import aiosmtplib
+from azure.communication.email.aio import EmailClient
 
 from app.core.config import settings
 from app.core.logging_config import logger
@@ -20,36 +17,36 @@ async def send_email(
     text_body: Optional[str] = None,
 ) -> bool:
     """
-    Send an email via SMTP. Returns True on success, False on failure.
+    Send an email via Azure Communication Services.
+    Returns True on success, False on failure.
     Never raises — failures are logged and suppressed.
     """
     if not settings.EMAIL_ENABLED:
         logger.info(f"Email disabled — would have sent '{subject}' to {to_email}")
         return False
 
-    if not settings.SMTP_HOST or not settings.SMTP_USER:
-        logger.warning("SMTP not configured — skipping email send")
+    if not settings.ACS_CONNECTION_STRING:
+        logger.warning("ACS_CONNECTION_STRING not configured — skipping email send")
         return False
 
     try:
-        message = MIMEMultipart("alternative")
-        message["From"] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
-        message["To"] = to_email
-        message["Subject"] = subject
+        message = {
+            "senderAddress": settings.ACS_SENDER_ADDRESS,
+            "recipients": {
+                "to": [{"address": to_email}],
+            },
+            "content": {
+                "subject": subject,
+                "html": html_body,
+                **({"plainText": text_body} if text_body else {}),
+            },
+        }
 
-        if text_body:
-            message.attach(MIMEText(text_body, "plain"))
-        message.attach(MIMEText(html_body, "html"))
+        async with EmailClient.from_connection_string(settings.ACS_CONNECTION_STRING) as client:
+            poller = await client.begin_send(message)
+            await poller.result()
 
-        await aiosmtplib.send(
-            message,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD,
-            start_tls=True,
-        )
-        logger.info(f"Email sent: '{subject}' → {to_email}")
+        logger.info(f"Email sent via ACS: '{subject}' → {to_email}")
         return True
 
     except Exception as e:
