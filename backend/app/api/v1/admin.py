@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import List, Optional, Dict, Any
 from uuid import UUID
+import asyncio
 from datetime import datetime, date
 from pydantic import BaseModel, Field
+
+from app.services.system_log_service import system_log
 
 from app.core.database import get_db
 from app.models.user import Organization, User, UserRole as UserRoleEnum
@@ -427,6 +430,18 @@ async def update_organization_status(
     await db.commit()
     await db.refresh(org)
 
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"Organisation updated: {org.name}",
+        {
+            "org_id": str(org.id),
+            "is_active": update_data.is_active,
+            "subscription_status": update_data.subscription_status,
+            "by": current_user.email,
+        },
+        "admin.organizations",
+    ))
+
     # Get counts
     user_count = await db.execute(
         select(func.count(User.id)).where(
@@ -581,6 +596,13 @@ async def create_subscription_plan(
     db.add(plan)
     await db.commit()
     await db.refresh(plan)
+
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"Subscription plan created: {plan.display_name}",
+        {"plan_id": str(plan.id), "by": current_user.email},
+        "admin.plans",
+    ))
 
     return SubscriptionPlanResponse(
         id=str(plan.id),
@@ -786,6 +808,13 @@ async def delete_subscription_plan(
     # Deactivate instead of hard delete
     plan.is_active = False
     await db.commit()
+
+    asyncio.create_task(system_log(
+        "WARNING", "admin",
+        f"Subscription plan deactivated: {plan.display_name}",
+        {"plan_id": str(plan.id), "by": current_user.email},
+        "admin.plans",
+    ))
 
     return None
 
@@ -1020,6 +1049,13 @@ async def create_user_admin(
     await db.commit()
     await db.refresh(new_user)
 
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"User created by admin: {new_user.email}",
+        {"organization": organization.name, "role": rbac_role_name, "by": current_user.email},
+        "admin.users",
+    ))
+
     return UserAdminResponse(
         id=str(new_user.id),
         email=new_user.email,
@@ -1069,6 +1105,13 @@ async def toggle_platform_admin(
     user.is_platform_admin = is_admin
     await db.commit()
 
+    asyncio.create_task(system_log(
+        "WARNING", "admin",
+        f"Platform admin {'granted to' if is_admin else 'revoked from'}: {user.email}",
+        {"user_id": str(user_id), "by": current_user.email},
+        "admin.users",
+    ))
+
     return {"message": f"User platform admin status set to {is_admin}"}
 
 
@@ -1105,6 +1148,13 @@ async def update_user_status(
 
     user.is_active = is_active
     await db.commit()
+
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"User {'activated' if is_active else 'deactivated'}: {user.email}",
+        {"user_id": str(user_id), "by": current_user.email},
+        "admin.users",
+    ))
 
     return {"message": f"User active status set to {is_active}"}
 

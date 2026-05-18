@@ -11,8 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from uuid import UUID
+import asyncio
 from datetime import datetime
 from pydantic import BaseModel
+
+from app.services.system_log_service import system_log
 
 from app.core.database import get_db
 from app.models.user import Organization, User
@@ -193,6 +196,14 @@ async def approve_organization(
 
     await db.commit()
     await db.refresh(org)
+
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"Organisation approved: {org.name}",
+        {"org_id": str(org.id), "by": admin_user.email},
+        "admin.org_admin",
+    ))
+
     return await _build_list_item(db, org)
 
 
@@ -234,6 +245,14 @@ async def reject_organization(
 
     await db.commit()
     await db.refresh(org)
+
+    asyncio.create_task(system_log(
+        "WARNING", "admin",
+        f"Organisation rejected: {org.name}",
+        {"org_id": str(org.id), "reason": body.reason, "by": admin_user.email},
+        "admin.org_admin",
+    ))
+
     return await _build_list_item(db, org)
 
 
@@ -271,6 +290,14 @@ async def suspend_organization(
 
     await db.commit()
     await db.refresh(org)
+
+    asyncio.create_task(system_log(
+        "WARNING", "admin",
+        f"Organisation suspended: {org.name}",
+        {"org_id": str(org.id), "reason": body.reason, "by": admin_user.email},
+        "admin.org_admin",
+    ))
+
     return await _build_list_item(db, org)
 
 
@@ -307,4 +334,12 @@ async def reactivate_organization(
 
     await db.commit()
     await db.refresh(org)
+
+    asyncio.create_task(system_log(
+        "INFO", "admin",
+        f"Organisation reactivated: {org.name}",
+        {"org_id": str(org.id), "by": admin_user.email},
+        "admin.org_admin",
+    ))
+
     return await _build_list_item(db, org)

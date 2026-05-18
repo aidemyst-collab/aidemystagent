@@ -3,10 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import uuid
+import asyncio
 from typing import Optional, List
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 import re
+
+from app.services.system_log_service import system_log
 
 from app.core.database import get_db
 from app.core.security import (
@@ -274,6 +277,13 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     await db.commit()
     await db.refresh(user)
 
+    asyncio.create_task(system_log(
+        "INFO", "auth",
+        f"New user registered: {user.email}",
+        {"organization": org_name, "role": rbac_role_name},
+        "auth.register",
+    ))
+
     # Get user roles
     roles = await get_user_roles(db, user)
 
@@ -330,6 +340,13 @@ async def login(
         db.add(audit_log)
         await db.commit()
 
+        asyncio.create_task(system_log(
+            "WARNING", "auth",
+            f"Login failed: {credentials.email}",
+            {"reason": "invalid_password" if user else "user_not_found", "ip": client_ip},
+            "auth.login",
+        ))
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
@@ -380,6 +397,13 @@ async def login(
     )
     db.add(audit_log)
     await db.commit()
+
+    asyncio.create_task(system_log(
+        "INFO", "auth",
+        f"User logged in: {user.email}",
+        {"organization": user.organization.name if user.organization else None, "ip": client_ip},
+        "auth.login",
+    ))
 
     # Get user roles
     roles = await get_user_roles(db, user)
