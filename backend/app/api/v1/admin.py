@@ -190,7 +190,18 @@ class CreateUserAdminRequest(BaseModel):
 
 
 class OrganizationStatusUpdate(BaseModel):
-    """Update organization status."""
+    """Update organization details and status."""
+    # Identity
+    name: Optional[str] = None
+    description: Optional[str] = None
+    # Profile fields
+    website: Optional[str] = None
+    phone_number: Optional[str] = None
+    country: Optional[str] = None
+    industry: Optional[str] = None
+    employee_count: Optional[str] = None
+    intended_use_case: Optional[str] = None
+    # Status
     is_active: Optional[bool] = None
     subscription_status: Optional[str] = None
     subscription_plan_id: Optional[UUID] = None
@@ -413,6 +424,22 @@ async def update_organization_status(
             detail="Organization not found",
         )
 
+    if update_data.name is not None:
+        org.name = update_data.name
+    if update_data.description is not None:
+        org.description = update_data.description
+    if update_data.website is not None:
+        org.website = update_data.website
+    if update_data.phone_number is not None:
+        org.phone_number = update_data.phone_number
+    if update_data.country is not None:
+        org.country = update_data.country
+    if update_data.industry is not None:
+        org.industry = update_data.industry
+    if update_data.employee_count is not None:
+        org.employee_count = update_data.employee_count
+    if update_data.intended_use_case is not None:
+        org.intended_use_case = update_data.intended_use_case
     if update_data.is_active is not None:
         org.is_active = update_data.is_active
 

@@ -62,6 +62,14 @@ interface UpdateSubscriptionPlanRequest {
 }
 
 interface UpdateOrganizationStatusRequest {
+  name?: string;
+  description?: string;
+  website?: string;
+  phoneNumber?: string;
+  country?: string;
+  industry?: string;
+  employeeCount?: string;
+  intendedUseCase?: string;
   isActive?: boolean;
   subscriptionStatus?: string;
   subscriptionPlanId?: string;
@@ -197,6 +205,14 @@ export const adminService = {
     data: UpdateOrganizationStatusRequest
   ): Promise<OrganizationAdmin> => {
     return apiClient.patch<OrganizationAdmin>(`/admin/organizations/${organizationId}`, {
+      name: data.name,
+      description: data.description,
+      website: data.website,
+      phone_number: data.phoneNumber,
+      country: data.country,
+      industry: data.industry,
+      employee_count: data.employeeCount,
+      intended_use_case: data.intendedUseCase,
       is_active: data.isActive,
       subscription_status: data.subscriptionStatus,
       subscription_plan_id: data.subscriptionPlanId,

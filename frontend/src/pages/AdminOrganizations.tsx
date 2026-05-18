@@ -55,6 +55,10 @@ const AdminOrganizations: React.FC = () => {
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<OrganizationAdmin | null>(null);
+  const [editForm] = Form.useForm();
+
   if (!isPlatformAdmin) return <Navigate to="/dashboard" replace />;
 
   const { data: orgsData, isLoading, refetch } = useQuery({
@@ -122,6 +126,18 @@ const AdminOrganizations: React.FC = () => {
       createForm.resetFields();
     },
     onError: (e: Error) => message.error(e.message || 'Failed to create'),
+  });
+
+  const editOrg = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof adminService.updateOrganizationStatus>[1] }) =>
+      adminService.updateOrganizationStatus(id, data),
+    onSuccess: () => {
+      invalidate();
+      message.success('Organisation updated');
+      setEditModalOpen(false);
+      setEditTarget(null);
+    },
+    onError: (e: Error) => message.error(e.message || 'Failed to update'),
   });
 
   const assignPlan = useMutation({
@@ -200,6 +216,20 @@ const AdminOrganizations: React.FC = () => {
       width: 220,
       render: (_: unknown, r: OrganizationAdmin) => (
         <Space size={4} wrap>
+          <Button size="small" onClick={() => {
+            setEditTarget(r);
+            editForm.setFieldsValue({
+              name: r.name,
+              description: r.description,
+              website: r.website,
+              phoneNumber: r.phoneNumber,
+              country: r.country,
+              industry: r.industry,
+              employeeCount: r.employeeCount,
+              intendedUseCase: r.intendedUseCase,
+            });
+            setEditModalOpen(true);
+          }}>Edit</Button>
           {r.approvalStatus !== 'active' ? (
             <Button size="small" type="primary"
               loading={approveOrg.isPending && approveOrg.variables === r.id}
@@ -327,6 +357,75 @@ const AdminOrganizations: React.FC = () => {
             </Option>
           ))}
         </Select>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        title={`Edit Organisation — ${editTarget?.name}`}
+        open={editModalOpen}
+        onCancel={() => { setEditModalOpen(false); setEditTarget(null); }}
+        onOk={() => editForm.submit()}
+        okText="Save Changes"
+        okButtonProps={{ loading: editOrg.isPending }}
+        width={600}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={(v) => {
+            if (!editTarget) return;
+            editOrg.mutate({
+              id: editTarget.id,
+              data: {
+                name: v.name,
+                description: v.description || undefined,
+                website: v.website || undefined,
+                phoneNumber: v.phoneNumber || undefined,
+                country: v.country || undefined,
+                industry: v.industry,
+                employeeCount: v.employeeCount,
+                intendedUseCase: v.intendedUseCase || undefined,
+              },
+            });
+          }}
+        >
+          <Form.Item name="name" label="Organisation Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Form.Item name="industry" label="Industry" rules={[{ required: true }]}>
+              <Select>
+                {['Technology','Finance','Healthcare','Education','Retail','Manufacturing','Legal','Real Estate','Marketing','Consulting','Media','Logistics','Other'].map(i => (
+                  <Option key={i} value={i}>{i}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="employeeCount" label="Team Size" rules={[{ required: true }]}>
+              <Select>
+                {['1-10','11-50','51-200','201-500','501-1000','1000+'].map(s => (
+                  <Option key={s} value={s}>{s}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Form.Item name="website" label="Website">
+              <Input placeholder="https://example.com" />
+            </Form.Item>
+            <Form.Item name="phoneNumber" label="Phone Number">
+              <Input placeholder="+1 555 000 0000" />
+            </Form.Item>
+          </div>
+          <Form.Item name="country" label="Country">
+            <Input placeholder="United Arab Emirates" />
+          </Form.Item>
+          <Form.Item name="intendedUseCase" label="Intended Use Case">
+            <Input.TextArea rows={3} placeholder="How they plan to use AgentStudio..." />
+          </Form.Item>
+        </Form>
       </Modal>
 
       {/* Reject Modal */}
