@@ -102,6 +102,9 @@ class ApiClient {
         } else if (Array.isArray(errorBody.detail)) {
           // FastAPI 422 validation errors return detail as an array
           errorMessage = errorBody.detail.map((e: { msg?: string }) => e.msg).filter(Boolean).join('; ') || errorMessage;
+        } else if (typeof errorBody.error?.message === 'string') {
+          // Error middleware envelope: { error: { message: "...", status_code: ... } }
+          errorMessage = errorBody.error.message;
         } else if (typeof errorBody.message === 'string') {
           errorMessage = errorBody.message;
         }
