@@ -76,6 +76,8 @@ class UserResponseAuth(BaseModel):
     createdAt: datetime
     # Org approval gate status — "pending", "active", "rejected", "suspended"
     orgApprovalStatus: Optional[str] = None
+    # Products the organisation is subscribed to — e.g. ["agentstudio", "demystrag", "mock_api"]
+    products: List[str] = []
     # Impersonation context — only populated when the caller uses an impersonation token
     isImpersonated: bool = False
     impersonatedBy: Optional[str] = None  # Admin user ID that started the session
@@ -220,6 +222,7 @@ def build_user_response(
     roles: List[str],
     org_name: Optional[str] = None,
     org_approval_status: Optional[str] = None,
+    products: Optional[List[str]] = None,
 ) -> UserResponseAuth:
     """Build user response from user model."""
     return UserResponseAuth(
@@ -235,6 +238,7 @@ def build_user_response(
         emailVerified=getattr(user, 'email_verified', False),
         createdAt=user.created_at,
         orgApprovalStatus=org_approval_status,
+        products=products or [],
     )
 
 
@@ -370,7 +374,7 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return RegisterResponse(
-        user=build_user_response(user, roles, org_name, org_approval_status),
+        user=build_user_response(user, roles, org_name, org_approval_status, claims.get("products")),
         tokens=TokenPair(
             accessToken=access_token,
             refreshToken=refresh_token,
@@ -513,7 +517,7 @@ async def login(
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return LoginResponse(
-        user=build_user_response(user, roles, org_name, org_approval_status),
+        user=build_user_response(user, roles, org_name, org_approval_status, claims.get("products")),
         tokens=TokenPair(
             accessToken=access_token,
             refreshToken=refresh_token,
@@ -731,7 +735,20 @@ async def get_current_user_info(
             org_approval_status = getattr(org, 'approval_status', None)
 
     roles = await get_user_roles(db, current_user)
-    base = build_user_response(current_user, roles, org_name, org_approval_status)
+    role_name = await get_primary_role_name(db, current_user)
+
+    products_list: List[str] = []
+    if current_user.organization_id:
+        org_result2 = await db.execute(
+            select(Organization).where(Organization.id == current_user.organization_id)
+        )
+        org2 = org_result2.scalar_one_or_none()
+        if org2:
+            plan2 = org2.subscription_plan if org2 else None
+            claims2 = build_token_claims(current_user, org2, plan2, role_name)
+            products_list = claims2.get("products", [])
+
+    base = build_user_response(current_user, roles, org_name, org_approval_status, products_list)
 
     return UserResponseAuth(
         **base.model_dump(),

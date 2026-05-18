@@ -14,6 +14,8 @@ export interface User {
   roles?: string[]; // RBAC role display names
   avatarUrl?: string;
   orgApprovalStatus?: 'pending' | 'approved' | 'rejected' | string;
+  products?: string[];       // Subscribed product slugs, e.g. ["demystrag", "mock_api"]
+  planLimits?: Record<string, unknown>; // Per-product quota limits from the subscription
 }
 
 export interface Organization {

@@ -23,6 +23,8 @@ import {
   RobotOutlined,
   ApiOutlined,
   FileTextOutlined,
+  ExportOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, usePermissions, useOrganizationSwitcher, useImpersonation } from '../../features/auth/authStore';
@@ -46,7 +48,7 @@ export const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, organization, isAuthenticated } = useAuthStore();
-  const { isPlatformAdmin, canAccess } = usePermissions();
+  const { isPlatformAdmin, canAccess, hasProduct } = usePermissions();
   const { mutate: logout } = useLogout();
   const { mutate: initializeOrganization } = useInitializeOrganization();
   const {
@@ -229,6 +231,38 @@ export const MainLayout = () => {
                 icon: <HistoryOutlined />,
                 label: 'Execution Logs',
                 onClick: () => navigate('/execution-logs'),
+              },
+            ]
+          : []),
+        // Product links — shown only when the org's plan includes the product
+        ...(hasProduct('demystrag') || hasProduct('mock_api')
+          ? [{ type: 'divider' as const }]
+          : []),
+        ...(hasProduct('demystrag')
+          ? [
+              {
+                key: 'product-demystrag',
+                icon: <DatabaseOutlined />,
+                label: 'DemystRAG',
+                onClick: () => {
+                  const base = import.meta.env.VITE_DEMYSTRAG_URL || 'http://localhost:8001';
+                  const token = useAuthStore.getState().tokens?.accessToken;
+                  window.open(token ? `${base}/#token=${token}` : base, '_blank');
+                },
+              },
+            ]
+          : []),
+        ...(hasProduct('mock_api')
+          ? [
+              {
+                key: 'product-mock-api',
+                icon: <ExportOutlined />,
+                label: 'Mock API',
+                onClick: () => {
+                  const base = import.meta.env.VITE_MOCK_API_URL || 'http://localhost:5183';
+                  const token = useAuthStore.getState().tokens?.accessToken;
+                  window.open(token ? `${base}/#token=${token}` : base, '_blank');
+                },
               },
             ]
           : []),

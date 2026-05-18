@@ -31,6 +31,7 @@ interface AuthState {
   hasRole: (roleName: string) => boolean;
   hasAnyRole: (roleNames: string[]) => boolean;
   canAccess: (feature: string) => boolean;
+  hasProduct: (product: string) => boolean;
 }
 
 // Feature access mapping based on roles
@@ -164,6 +165,30 @@ export const useAuthStore = create<AuthState>()(
         const roles = user.roles || [];
         return roles.some(role => allowedRoles.includes(role));
       },
+
+      hasProduct: (product: string) => {
+        const { user, tokens } = get();
+        if (!user) return false;
+        if (user.isPlatformAdmin) return true;
+
+        // Prefer products array on the user object (populated from backend response)
+        if (user.products?.length) {
+          return user.products.includes(product);
+        }
+
+        // Fall back to decoding the JWT access token payload
+        if (tokens?.accessToken) {
+          try {
+            const b64 = tokens.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(atob(b64)) as Record<string, unknown>;
+            if (payload.is_platform_admin) return true;
+            return (payload.products as string[] | undefined)?.includes(product) ?? false;
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      },
     }),
     {
       name: 'auth-storage',
@@ -189,6 +214,7 @@ export const usePermissions = () => {
   const hasRole = useAuthStore((state) => state.hasRole);
   const hasAnyRole = useAuthStore((state) => state.hasAnyRole);
   const canAccess = useAuthStore((state) => state.canAccess);
+  const hasProduct = useAuthStore((state) => state.hasProduct);
 
   return {
     user,
@@ -197,6 +223,7 @@ export const usePermissions = () => {
     hasRole,
     hasAnyRole,
     canAccess,
+    hasProduct,
   };
 };
 
