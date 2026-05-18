@@ -1,6 +1,6 @@
 # Unified Authentication Architecture — Single Login Across AgentStudio, DemystRAG & Mock API
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Date:** 2026-05-18  
 **Status:** Proposal — Pending Review  
 **Authors:** Tech Lead + Product Owner
@@ -625,44 +625,46 @@ For immediate revocation (e.g., cancelled subscription): a Redis blacklist entry
 
 ### 8.4 Role-Based Access Within Sub-Apps
 
-Sub-apps do not have their own role tables. They read `org_role` from the JWT and map it to a local permission tier. AgentStudio has 6 system roles; both sub-apps collapse these into 3 tiers because their domain models are simpler.
+Sub-apps do not have their own role tables. They read `org_role` from the JWT and map it to a local permission tier. AgentStudio has 6 system roles; sub-apps collapse these into 3 tiers. The mapping can differ between sub-apps depending on their domain requirements.
 
 #### Role Tier Mapping
 
-| AgentStudio Role | Sub-App Tier |
-|-----------------|--------------|
-| `org_owner` | **admin** |
-| `org_admin` | **admin** |
-| `team_lead` | **contributor** |
-| `developer` | **contributor** |
-| `operator` | **contributor** |
-| `viewer` | **reader** |
-| `is_platform_admin: true` | **admin** (overrides all) |
-| Any unknown/custom role | **reader** (least-privilege default) |
+| AgentStudio Role | DemystRAG Tier | Mock API Tier |
+|-----------------|----------------|---------------|
+| `org_owner` | **admin** | **admin** |
+| `org_admin` | **admin** | **admin** |
+| `team_lead` | **admin** | **contributor** |
+| `developer` | **contributor** | **contributor** |
+| `operator` | **contributor** | **contributor** |
+| `viewer` | **reader** | **reader** |
+| `is_platform_admin: true` | **admin** (overrides all) | **admin** (overrides all) |
+| Any unknown/custom role | **reader** (least-privilege default) | **reader** (least-privilege default) |
+
+> **Why `team_lead` → `admin` in DemystRAG only:** DemystRAG has a document approval workflow where documents must be reviewed and approved by a trusted user before entering the RAG knowledge base. Team leads are responsible for content quality within their team and must be able to approve documents. In Mock API, approval is not a concept — `team_lead` retains `contributor` tier so they manage their own endpoints without full admin access to all org configurations.
 
 #### DemystRAG — Tier Permissions
 
-DemystRAG's domain: documents, collections, vector search, query history.
+DemystRAG's domain: documents, collections, vector search, query history, document approval workflow.
 
-| Tier | Permissions |
-|------|-------------|
-| **admin** | Create/delete collections, upload documents, run queries, view and delete any org document, manage RAG settings |
-| **contributor** | Create collections, upload documents, run queries, view and delete own documents |
-| **reader** | Run queries only — no upload, no collection management |
+| Tier | AgentStudio Roles | Permissions |
+|------|------------------|-------------|
+| **admin** | `org_owner`, `org_admin`, `team_lead` | Create/delete collections, upload documents, run queries, view and delete any org document, **approve/reject documents for RAG ingestion**, manage RAG settings |
+| **contributor** | `developer`, `operator` | Create collections, upload documents, run queries, view and delete own documents, submit documents for approval |
+| **reader** | `viewer` | Run queries only — no upload, no collection management, no approval |
 
 #### Mock API — Tier Permissions
 
 Mock API's domain: mock endpoints, request logs, API keys, response templates.
 
-| Tier | Permissions |
-|------|-------------|
-| **admin** | Create/edit/delete any endpoint, manage org API keys, view all request logs, manage settings |
-| **contributor** | Create/edit/delete own endpoints, create API keys scoped to own endpoints, run tests, view own logs |
-| **reader** | View endpoint definitions, send test requests, view own logs — no create/edit/delete |
+| Tier | AgentStudio Roles | Permissions |
+|------|------------------|-------------|
+| **admin** | `org_owner`, `org_admin` | Create/edit/delete any endpoint, manage org API keys, view all request logs, manage settings |
+| **contributor** | `team_lead`, `developer`, `operator` | Create/edit/delete own endpoints, create API keys scoped to own endpoints, run tests, view own logs |
+| **reader** | `viewer` | View endpoint definitions, send test requests, view own logs — no create/edit/delete |
 
 #### Role Change Propagation
 
-Role changes made in AgentStudio (e.g., promoting a `viewer` to `developer`) take effect in sub-apps on the user's next token refresh — within 30 minutes. No action is required in the sub-apps.
+Role changes made in AgentStudio (e.g., promoting a `developer` to `team_lead`) take effect in sub-apps on the user's next token refresh — within 30 minutes. No action is required in the sub-apps. For DemystRAG, a `developer` promoted to `team_lead` gains document approval permissions on their next refresh.
 
 ---
 
@@ -747,7 +749,18 @@ REQUIRED_PRODUCT = "demystrag"
 
 TIER_ORDER = {"reader": 0, "contributor": 1, "admin": 2}
 
-ROLE_TO_TIER = {
+# DemystRAG-specific mapping — team_lead is admin here because they approve documents
+ROLE_TO_TIER_DEMYSTRAG = {
+    "org_owner":  "admin",
+    "org_admin":  "admin",
+    "team_lead":  "admin",       # can approve/reject documents for RAG ingestion
+    "developer":  "contributor",
+    "operator":   "contributor",
+    "viewer":     "reader",
+}
+
+# Mock API mapping — team_lead stays contributor (no approval workflow)
+ROLE_TO_TIER_MOCK_API = {
     "org_owner":  "admin",
     "org_admin":  "admin",
     "team_lead":  "contributor",
@@ -755,6 +768,9 @@ ROLE_TO_TIER = {
     "operator":   "contributor",
     "viewer":     "reader",
 }
+
+# Set ROLE_TO_TIER to the correct dict for this app
+ROLE_TO_TIER = ROLE_TO_TIER_DEMYSTRAG  # change to ROLE_TO_TIER_MOCK_API in Mock API
 
 
 def get_current_user(
@@ -778,9 +794,12 @@ def get_current_user(
             detail=f"{REQUIRED_PRODUCT} is not included in your subscription plan",
         )
 
-    # JIT: keep local org shadow record in sync with JWT claims so FK integrity
-    # and existing quota enforcement code (QuotaChecker) continue to work
+    # JIT: sync three shadow records so all existing FK constraints and role
+    # checks (require_org_admin, require_org_creator, QuotaChecker) continue
+    # to work without modification.
     _upsert_org(db, payload)
+    _upsert_user(db, payload)
+    _upsert_org_member(db, payload)
 
     org_role = payload.get("org_role", "viewer")
     payload["_tier"] = "admin" if is_platform_admin else ROLE_TO_TIER.get(org_role, "reader")
@@ -814,6 +833,61 @@ def _upsert_org(db: Session, payload: dict) -> None:
     })
     db.commit()
     # Mock API: replace "organizations" with "tenants" in the INSERT above
+
+
+def _upsert_user(db: Session, payload: dict) -> None:
+    """
+    Create or update the local user shadow record from JWT claims.
+    Required because document_approvals.requested_by / reviewed_by FK
+    references the local users table. Without this row the FK insert fails.
+    email is not in the JWT — username falls back to sub UUID on first creation;
+    a subsequent profile-fetch endpoint can fill it in if needed.
+    """
+    db.execute(text("""
+        INSERT INTO users (id, username, email, role, platform_role, is_active)
+        VALUES (:id, :username, :email, 'user', :platform_role, true)
+        ON CONFLICT (id) DO UPDATE SET
+            platform_role = EXCLUDED.platform_role,
+            is_active     = true
+    """), {
+        "id":            payload["sub"],
+        "username":      payload.get("sub"),          # overwritten later if profile sync added
+        "email":         payload.get("sub"),          # placeholder — unique constraint satisfied
+        "platform_role": "platform_admin" if payload.get("is_platform_admin") else "user",
+    })
+    db.commit()
+
+
+def _upsert_org_member(db: Session, payload: dict) -> None:
+    """
+    Create or update the OrganizationUser membership record from JWT claims.
+    This is what require_org_admin / require_org_creator read to enforce roles.
+    The DemystRAG role is derived from the JWT tier using DEMYSTRAG_TIER_TO_ROLE.
+    Called on every request so role promotions take effect immediately after refresh.
+    """
+    DEMYSTRAG_TIER_TO_ROLE = {
+        "admin":       "org_admin",
+        "contributor": "org_creator",
+        "reader":      "org_viewer",
+    }
+    is_platform_admin = payload.get("is_platform_admin", False)
+    org_role = payload.get("org_role", "viewer")
+    tier = "admin" if is_platform_admin else ROLE_TO_TIER.get(org_role, "reader")
+    demystrag_role = DEMYSTRAG_TIER_TO_ROLE[tier]
+
+    db.execute(text("""
+        INSERT INTO organization_users (user_id, organization_id, role, is_active)
+        VALUES (:user_id, :org_id, :role, true)
+        ON CONFLICT (user_id, organization_id) DO UPDATE SET
+            role      = EXCLUDED.role,
+            is_active = true
+    """), {
+        "user_id": payload["sub"],
+        "org_id":  payload["org_id"],
+        "role":    demystrag_role,
+    })
+    db.commit()
+    # Mock API: this function is not needed — Mock API has no OrganizationUser table.
 
 
 def require_tier(min_tier: str):
@@ -852,7 +926,18 @@ async def delete_collection(user: dict = Depends(require_tier("admin"))):
 
 ### 10.3 Replacing Existing Auth Middleware
 
-DemystRAG and Mock API currently use their own `get_current_user` dependency that queries their local `users` table. Replace every import of the old dependency with the new `agentstudio_auth.get_current_user`. No other application code changes are needed.
+DemystRAG and Mock API currently use their own `get_current_user` dependency that queries their local `users` table. The new `agentstudio_auth.get_current_user` validates the AgentStudio JWT and JIT-provisions three shadow records on every request:
+
+1. `_upsert_org()` — org/tenant shadow row (quota limits, name, slug)
+2. `_upsert_user()` — user shadow row (required for FK references in `document_approvals.requested_by` / `reviewed_by`)
+3. `_upsert_org_member()` — `OrganizationUser` membership row with the correct DemystRAG role derived from the JWT tier
+
+After dropping in `agentstudio_auth.py`, the following existing DemystRAG dependencies require **no code changes** because the JIT-provisioned `OrganizationUser` row makes them work exactly as before:
+- `require_org_admin` — approving/rejecting documents, deleting collections, managing settings
+- `require_org_creator` — submitting documents for approval, creating collections
+- `require_org_auditor` — view-only access to own documents
+
+> **Mock API note:** Mock API does not have an `OrganizationUser` table or a document approval workflow, so `_upsert_user()` and `_upsert_org_member()` are not needed there. Only `_upsert_tenant()` (the Mock API equivalent of `_upsert_org()`) is required.
 
 ### 10.4 Frontend Token Sharing
 
@@ -1330,22 +1415,28 @@ For users who already have accounts in DemystRAG or Mock API:
 - [ ] **Schema migration:** Change `organization_id` columns from `INT` to `VARCHAR(36)` across all tables (see §4.2)
 - [ ] **Data migration:** Map existing integer org IDs to AgentStudio UUIDs (email-match script from §13.2 first)
 - [ ] **Schema migration:** Slim down `organizations` table — remove `billing_email`, `plan_type`, `subscription_*`, `created_by`; add `UNIQUE` constraint on `id` if not present
-- [ ] Create `app/core/agentstudio_auth.py` (set `REQUIRED_PRODUCT = "demystrag"`, use sync SQLAlchemy `Session`)
+- [ ] Create `app/core/agentstudio_auth.py` (set `REQUIRED_PRODUCT = "demystrag"`, `ROLE_TO_TIER = ROLE_TO_TIER_DEMYSTRAG`, use sync SQLAlchemy `Session`)
+- [ ] Implement `_upsert_org()` — syncs org shadow row with quota limits from JWT `plan_limits`
+- [ ] Implement `_upsert_user()` — syncs user shadow row so `document_approvals.requested_by` / `reviewed_by` FK references resolve
+- [ ] Implement `_upsert_org_member()` — syncs `OrganizationUser` row with DemystRAG role derived from JWT tier; `team_lead` → `org_admin`
 - [ ] Replace all uses of old `get_current_user` from `auth.py` with `agentstudio_auth.get_current_user`
-- [ ] Replace `require_org_admin` / `require_org_creator` with `require_tier("admin")` / `require_tier("contributor")`
+- [ ] **No changes needed** to `require_org_admin`, `require_org_creator`, `require_org_auditor` — JIT-provisioned rows make them work as-is
+- [ ] **No changes needed** to `ApprovalService`, `repository_routes.py`, or any approval endpoint logic
 - [ ] Remove `organization_routes.py` (org create/invite/plan endpoints — now managed by AgentStudio)
 - [ ] Remove `auth.py` (login, register, refresh endpoints)
-- [ ] Remove `users`, `organization_users`, `organization_invitations` models and drop migrations
+- [ ] Remove `users`, `organization_users`, `organization_invitations` models and drop migrations (after migration in §13.2)
 - [ ] Add `AGENTSTUDIO_JWT_SECRET` to Azure Container App settings
-- [ ] Test: first request with new org UUID → local org shadow row created with correct quota values
+- [ ] Test: first request with new org UUID → org shadow row, user shadow row, and `OrganizationUser` row all created
 - [ ] Test: plan upgrade in AgentStudio → next request updates `max_documents` in DemystRAG org row
 - [ ] Test: `QuotaChecker.check_document_quota()` still blocks correctly using synced limits
-- [ ] Test: `org_owner` token → tier `admin`, can delete collections
-- [ ] Test: `developer` token → tier `contributor`, can upload, cannot delete collections
-- [ ] Test: `viewer` token → tier `reader`, can query, cannot upload (403)
+- [ ] Test: `org_owner` token → `org_admin` in `OrganizationUser` → can delete collections, can approve documents
+- [ ] Test: `team_lead` token → `org_admin` in `OrganizationUser` → can approve/reject documents ✓
+- [ ] Test: `developer` token → `org_creator` in `OrganizationUser` → can upload and submit for approval, cannot approve (403)
+- [ ] Test: `viewer` token → `org_viewer` in `OrganizationUser` → can query only, cannot upload (403), cannot approve (403)
+- [ ] Test: `team_lead` promoted from `developer` in AgentStudio → after token refresh, `OrganizationUser.role` updates to `org_admin` → can now approve documents
 - [ ] Test: `has_demystrag: false` → 403 regardless of role
 - [ ] Test: expired token → 401; tampered token → 401
-- [ ] Test: `is_platform_admin: true` → tier `admin`, bypasses product check
+- [ ] Test: `is_platform_admin: true` → tier `admin`, bypasses product check, `OrganizationUser.role = org_admin`
 
 ### Mock API Backend
 
