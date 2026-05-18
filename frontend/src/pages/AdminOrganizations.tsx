@@ -149,9 +149,19 @@ const AdminOrganizations: React.FC = () => {
       ),
     },
     {
+      title: 'Approval',
+      key: 'approval',
+      width: 110,
+      render: (_: unknown, r: OrganizationAdmin) => (
+        <Tag color={approvalColor(r.approvalStatus)}>
+          {r.approvalStatus?.charAt(0).toUpperCase() + r.approvalStatus?.slice(1)}
+        </Tag>
+      ),
+    },
+    {
       title: 'Status',
       key: 'status',
-      width: 120,
+      width: 100,
       render: (_: unknown, r: OrganizationAdmin) => {
         if (!r.isActive) return <Tag color="red">Inactive</Tag>;
         return <Tag color={statusColor(r.subscriptionStatus)}>
@@ -190,26 +200,29 @@ const AdminOrganizations: React.FC = () => {
       width: 220,
       render: (_: unknown, r: OrganizationAdmin) => (
         <Space size={4} wrap>
-          {r.isActive ? (
-            <Button size="small" danger onClick={() => suspendOrg.mutate(r.id)}>Suspend</Button>
-          ) : (
-            <Button size="small" type="primary" onClick={() => reactivateOrg.mutate(r.id)}>Reactivate</Button>
-          )}
-          <Button size="small"
-            onClick={() => updateOrg.mutate({ id: r.id, data: { isActive: !r.isActive } })}>
-            {r.isActive ? 'Deactivate' : 'Activate'}
-          </Button>
-          {!r.isActive && (
+          {r.approvalStatus !== 'active' ? (
             <Button size="small" type="primary"
               loading={approveOrg.isPending && approveOrg.variables === r.id}
               onClick={() => approveOrg.mutate(r.id)}>
               Approve
             </Button>
+          ) : r.approvalStatus === 'active' && r.isActive ? (
+            <Button size="small" danger onClick={() => suspendOrg.mutate(r.id)}>Suspend</Button>
+          ) : (
+            <Button size="small" type="primary" onClick={() => reactivateOrg.mutate(r.id)}>Reactivate</Button>
           )}
-          <Button size="small" danger
-            onClick={() => { setRejectTargetId(r.id); setRejectReason(''); setRejectModalOpen(true); }}>
-            Reject
-          </Button>
+          {r.approvalStatus !== 'pending' && (
+            <Button size="small"
+              onClick={() => updateOrg.mutate({ id: r.id, data: { isActive: !r.isActive } })}>
+              {r.isActive ? 'Deactivate' : 'Activate'}
+            </Button>
+          )}
+          {r.approvalStatus !== 'rejected' && (
+            <Button size="small" danger
+              onClick={() => { setRejectTargetId(r.id); setRejectReason(''); setRejectModalOpen(true); }}>
+              Reject
+            </Button>
+          )}
         </Space>
       ),
     },

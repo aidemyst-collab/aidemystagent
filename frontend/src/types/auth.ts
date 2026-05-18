@@ -187,6 +187,7 @@ export interface OrganizationAdmin {
   subscriptionPlanName?: string;
   trialEndsAt?: string;
   isActive: boolean;
+  approvalStatus: string;
   userCount: number;
   agentCount: number;
   deploymentCount: number;

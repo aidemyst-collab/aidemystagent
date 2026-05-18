@@ -139,6 +139,7 @@ export const adminService = {
         subscription_plan_name?: string;
         trial_ends_at?: string;
         is_active: boolean;
+        approval_status: string;
         user_count: number;
         agent_count: number;
         deployment_count: number;
@@ -158,6 +159,7 @@ export const adminService = {
         subscriptionPlanName: o.subscription_plan_name,
         trialEndsAt: o.trial_ends_at,
         isActive: o.is_active,
+        approvalStatus: o.approval_status || 'active',
         userCount: o.user_count,
         agentCount: o.agent_count,
         deploymentCount: o.deployment_count,

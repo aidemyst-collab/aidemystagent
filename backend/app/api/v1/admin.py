@@ -50,6 +50,7 @@ class OrganizationAdminResponse(BaseModel):
     subscription_plan_name: Optional[str] = None
     trial_ends_at: Optional[datetime] = None
     is_active: bool
+    approval_status: str = "active"
     user_count: int
     agent_count: int
     deployment_count: int
@@ -363,6 +364,7 @@ async def list_all_organizations(
             subscription_plan_name=plan_name,
             trial_ends_at=org.trial_ends_at,
             is_active=org.is_active,
+            approval_status=getattr(org, 'approval_status', 'active') or 'active',
             user_count=user_count.scalar() or 0,
             agent_count=agent_count.scalar() or 0,
             deployment_count=deployment_count.scalar() or 0,
@@ -481,6 +483,7 @@ async def update_organization_status(
         subscription_plan_name=plan_name,
         trial_ends_at=org.trial_ends_at,
         is_active=org.is_active,
+        approval_status=getattr(org, 'approval_status', 'active') or 'active',
         user_count=user_count.scalar() or 0,
         agent_count=agent_count.scalar() or 0,
         deployment_count=deployment_count.scalar() or 0,
