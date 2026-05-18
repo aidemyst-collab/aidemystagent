@@ -114,7 +114,7 @@ def generate_slug(name: str) -> str:
 
 
 async def get_user_roles(db: AsyncSession, user: User) -> List[str]:
-    """Get user's role names from UserRole table."""
+    """Get user's role display names from UserRole table."""
     try:
         from app.models.role import UserRole, Role
         result = await db.execute(
@@ -125,8 +125,63 @@ async def get_user_roles(db: AsyncSession, user: User) -> List[str]:
         roles = result.scalars().all()
         return list(roles) if roles else []
     except Exception:
-        # Role tables might not exist yet
         return []
+
+
+async def get_primary_role_name(db: AsyncSession, user: User) -> str:
+    """Get user's primary RBAC role name (e.g. 'developer', 'org_admin') for JWT claim."""
+    try:
+        from app.models.role import UserRole, Role
+        result = await db.execute(
+            select(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user.id)
+            .limit(1)
+        )
+        role_name = result.scalar_one_or_none()
+        return role_name or (user.role.value.lower() if user.role else "viewer")
+    except Exception:
+        return user.role.value.lower() if user.role else "viewer"
+
+
+def build_token_claims(user: User, org: Organization, plan, role_name: str) -> dict:
+    """
+    Build enriched JWT claims from user, org and subscription plan.
+    Called at login and refresh so sub-apps can authorise without querying AgentStudio.
+    """
+    products = ["agentstudio"]
+    plan_limits = {
+        "max_users": 5,
+        "max_documents": 100,
+        "max_storage_mb": 1000,
+        "max_collections": 5,
+        "embedding_providers": ["openai"],
+    }
+
+    if plan:
+        features = plan.features or {}
+        if plan.has_feature("has_demystrag"):
+            products.append("demystrag")
+        if plan.has_feature("has_mock_api"):
+            products.append("mock_api")
+        plan_limits = {
+            "max_users": plan.max_users,
+            "max_documents": features.get("demystrag_max_documents", 100),
+            "max_storage_mb": features.get("demystrag_max_storage_mb", 1000),
+            "max_collections": features.get("demystrag_max_collections", 5),
+            "embedding_providers": features.get("demystrag_embedding_providers", ["openai"]),
+        }
+
+    return {
+        "sub": str(user.id),
+        "org_id": str(org.id),
+        "org_name": org.name,
+        "org_slug": org.slug or "",
+        "org_role": role_name,
+        "is_platform_admin": bool(getattr(user, "is_platform_admin", False)),
+        "products": products,
+        "plan_limits": plan_limits,
+    }
 
 
 async def assign_role_to_user(db: AsyncSession, user_id: uuid.UUID, role_name: str, organization_id: uuid.UUID) -> bool:
@@ -303,14 +358,15 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
         "auth.register",
     ))
 
-    # Get user roles
+    # Get user roles for response
     roles = await get_user_roles(db, user)
 
     # Capture org approval status to include in response
     org_approval_status = getattr(organization, 'approval_status', None)
 
-    # Create tokens
-    access_token = create_access_token({"sub": str(user.id)})
+    # New org has no subscription plan yet — build_token_claims uses defaults
+    claims = build_token_claims(user, organization, plan=None, role_name=rbac_role_name)
+    access_token = create_access_token(claims)
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return RegisterResponse(
@@ -335,7 +391,9 @@ async def login(
 
     result = await db.execute(
         select(User)
-        .options(selectinload(User.organization))
+        .options(
+            selectinload(User.organization).selectinload(Organization.subscription_plan)
+        )
         .where(User.email == credentials.email)
     )
     user = result.scalar_one_or_none()
@@ -396,6 +454,21 @@ async def login(
             detail="Account is deactivated",
         )
 
+    # Org approval gate — platform admins bypass
+    is_platform_admin = bool(getattr(user, "is_platform_admin", False))
+    if not is_platform_admin and user.organization:
+        approval_status = getattr(user.organization, "approval_status", "active")
+        if approval_status == "pending":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your organisation is pending approval. You will be notified when access is granted.",
+            )
+        elif approval_status in ("rejected", "suspended"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: organisation is {approval_status}.",
+            )
+
     # Update last login
     if hasattr(user, 'last_login_at'):
         user.last_login_at = datetime.utcnow()
@@ -426,13 +499,17 @@ async def login(
 
     # Get user roles
     roles = await get_user_roles(db, user)
+    role_name = await get_primary_role_name(db, user)
 
     # Get org name and approval status
-    org_name = user.organization.name if user.organization else None
-    org_approval_status = getattr(user.organization, 'approval_status', None) if user.organization else None
+    org = user.organization
+    org_name = org.name if org else None
+    org_approval_status = getattr(org, 'approval_status', None) if org else None
+    plan = org.subscription_plan if org else None
 
-    # Create tokens
-    access_token = create_access_token({"sub": str(user.id)})
+    # Create enriched tokens
+    claims = build_token_claims(user, org, plan, role_name) if org else {"sub": str(user.id)}
+    access_token = create_access_token(claims)
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return LoginResponse(
@@ -445,8 +522,8 @@ async def login(
 
 
 @router.post("/refresh", response_model=TokenPair)
-async def refresh_token(data: RefreshTokenRequest):
-    """Refresh access token."""
+async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(get_db)):
+    """Refresh access token with re-derived enriched claims."""
     payload = decode_token(data.refreshToken)
 
     if not payload or payload.get("type") != "refresh":
@@ -456,8 +533,26 @@ async def refresh_token(data: RefreshTokenRequest):
         )
 
     user_id = payload.get("sub")
-    access_token = create_access_token({"sub": user_id})
-    new_refresh_token = create_refresh_token({"sub": user_id})
+
+    result = await db.execute(
+        select(User)
+        .options(
+            selectinload(User.organization).selectinload(Organization.subscription_plan)
+        )
+        .where(User.id == uuid.UUID(user_id))
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or not getattr(user, "is_active", True):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+
+    org = user.organization
+    plan = org.subscription_plan if org else None
+    role_name = await get_primary_role_name(db, user)
+
+    claims = build_token_claims(user, org, plan, role_name) if org else {"sub": str(user.id)}
+    access_token = create_access_token(claims)
+    new_refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return TokenPair(
         accessToken=access_token,
