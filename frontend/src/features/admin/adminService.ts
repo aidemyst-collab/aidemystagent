@@ -140,6 +140,12 @@ export const adminService = {
         trial_ends_at?: string;
         is_active: boolean;
         approval_status: string;
+        website?: string;
+        phone_number?: string;
+        country?: string;
+        industry?: string;
+        employee_count?: string;
+        intended_use_case?: string;
         user_count: number;
         agent_count: number;
         deployment_count: number;
@@ -160,6 +166,12 @@ export const adminService = {
         trialEndsAt: o.trial_ends_at,
         isActive: o.is_active,
         approvalStatus: o.approval_status || 'active',
+        website: o.website,
+        phoneNumber: o.phone_number,
+        country: o.country,
+        industry: o.industry,
+        employeeCount: o.employee_count,
+        intendedUseCase: o.intended_use_case,
         userCount: o.user_count,
         agentCount: o.agent_count,
         deploymentCount: o.deployment_count,

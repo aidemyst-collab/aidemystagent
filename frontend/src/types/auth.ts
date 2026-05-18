@@ -45,9 +45,16 @@ export interface RegisterRequest {
   email: string;
   password: string;
   fullName?: string;
-  organizationId?: string;  // For joining existing org
-  organizationName?: string;  // For creating new org
+  organizationId?: string;
+  organizationName?: string;
   role?: 'admin' | 'creator' | 'viewer';
+  // Organisation profile
+  website?: string;
+  phoneNumber?: string;
+  country?: string;
+  industry?: string;
+  employeeCount?: string;
+  intendedUseCase?: string;
 }
 
 export interface PasswordResetRequest {
@@ -188,6 +195,12 @@ export interface OrganizationAdmin {
   trialEndsAt?: string;
   isActive: boolean;
   approvalStatus: string;
+  website?: string;
+  phoneNumber?: string;
+  country?: string;
+  industry?: string;
+  employeeCount?: string;
+  intendedUseCase?: string;
   userCount: number;
   agentCount: number;
   deploymentCount: number;

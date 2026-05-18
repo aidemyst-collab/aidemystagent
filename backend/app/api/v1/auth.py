@@ -38,9 +38,16 @@ class UserRegister(BaseModel):
     email: EmailStr
     password: str
     full_name: Optional[str] = None
-    organization_id: Optional[str] = None  # Optional - can create new org
-    organization_name: Optional[str] = None  # For creating new organization
+    organization_id: Optional[str] = None
+    organization_name: Optional[str] = None
     role: Optional[str] = None
+    # Organisation profile
+    website: Optional[str] = None
+    phone_number: Optional[str] = None
+    country: Optional[str] = None
+    industry: str = "Other"
+    employee_count: str = "1-10"
+    intended_use_case: Optional[str] = None
 
 
 class TokenPair(BaseModel):
@@ -223,6 +230,12 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
             name=user_data.organization_name,
             slug=generate_slug(user_data.organization_name),
             approval_status="pending",
+            website=user_data.website,
+            phone_number=user_data.phone_number,
+            country=user_data.country,
+            industry=user_data.industry,
+            employee_count=user_data.employee_count,
+            intended_use_case=user_data.intended_use_case,
         )
         db.add(organization)
         await db.flush()
@@ -234,6 +247,12 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
             name=default_org_name,
             slug=generate_slug(default_org_name),
             approval_status="pending",
+            website=user_data.website,
+            phone_number=user_data.phone_number,
+            country=user_data.country,
+            industry=user_data.industry,
+            employee_count=user_data.employee_count,
+            intended_use_case=user_data.intended_use_case,
         )
         db.add(organization)
         await db.flush()

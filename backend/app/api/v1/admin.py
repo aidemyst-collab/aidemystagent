@@ -51,6 +51,13 @@ class OrganizationAdminResponse(BaseModel):
     trial_ends_at: Optional[datetime] = None
     is_active: bool
     approval_status: str = "active"
+    # Profile fields
+    website: Optional[str] = None
+    phone_number: Optional[str] = None
+    country: Optional[str] = None
+    industry: Optional[str] = None
+    employee_count: Optional[str] = None
+    intended_use_case: Optional[str] = None
     user_count: int
     agent_count: int
     deployment_count: int
@@ -365,6 +372,12 @@ async def list_all_organizations(
             trial_ends_at=org.trial_ends_at,
             is_active=org.is_active,
             approval_status=getattr(org, 'approval_status', 'active') or 'active',
+            website=getattr(org, 'website', None),
+            phone_number=getattr(org, 'phone_number', None),
+            country=getattr(org, 'country', None),
+            industry=getattr(org, 'industry', None),
+            employee_count=getattr(org, 'employee_count', None),
+            intended_use_case=getattr(org, 'intended_use_case', None),
             user_count=user_count.scalar() or 0,
             agent_count=agent_count.scalar() or 0,
             deployment_count=deployment_count.scalar() or 0,
@@ -484,6 +497,12 @@ async def update_organization_status(
         trial_ends_at=org.trial_ends_at,
         is_active=org.is_active,
         approval_status=getattr(org, 'approval_status', 'active') or 'active',
+        website=getattr(org, 'website', None),
+        phone_number=getattr(org, 'phone_number', None),
+        country=getattr(org, 'country', None),
+        industry=getattr(org, 'industry', None),
+        employee_count=getattr(org, 'employee_count', None),
+        intended_use_case=getattr(org, 'intended_use_case', None),
         user_count=user_count.scalar() or 0,
         agent_count=agent_count.scalar() or 0,
         deployment_count=deployment_count.scalar() or 0,

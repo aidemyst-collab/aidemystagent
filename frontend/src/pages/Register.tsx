@@ -96,6 +96,12 @@ export const Register = () => {
 
     if (!isInternalCreate) {
       registerData.organizationName = values.organizationName;
+      registerData.industry = values.industry;
+      registerData.employeeCount = values.employeeCount;
+      registerData.website = values.website || undefined;
+      registerData.phoneNumber = values.phoneNumber || undefined;
+      registerData.country = values.country || undefined;
+      registerData.intendedUseCase = values.intendedUseCase || undefined;
     } else {
       if (values.organizationId) {
         registerData.organizationId = values.organizationId;
@@ -460,6 +466,60 @@ export const Register = () => {
                 prefix={<TeamOutlined style={{ color: '#94a3b8' }} />}
                 placeholder="Acme Corp"
                 style={{ borderRadius: '10px', height: '48px', fontSize: '15px' }}
+              />
+            </Form.Item>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <Form.Item
+                name="industry"
+                label="Industry"
+                rules={[{ required: true, message: 'Please select your industry!' }]}
+              >
+                <Select placeholder="Select industry" style={{ height: '48px' }}>
+                  <Option value="Technology">Technology</Option>
+                  <Option value="Finance">Finance & Banking</Option>
+                  <Option value="Healthcare">Healthcare</Option>
+                  <Option value="Education">Education</Option>
+                  <Option value="Retail">Retail & E-commerce</Option>
+                  <Option value="Manufacturing">Manufacturing</Option>
+                  <Option value="Legal">Legal</Option>
+                  <Option value="Real Estate">Real Estate</Option>
+                  <Option value="Marketing">Marketing & Advertising</Option>
+                  <Option value="Consulting">Consulting</Option>
+                  <Option value="Media">Media & Entertainment</Option>
+                  <Option value="Logistics">Logistics & Supply Chain</Option>
+                  <Option value="Other">Other</Option>
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="employeeCount"
+                label="Team Size"
+                rules={[{ required: true, message: 'Please select your team size!' }]}
+              >
+                <Select placeholder="Select size" style={{ height: '48px' }}>
+                  <Option value="1-10">1–10</Option>
+                  <Option value="11-50">11–50</Option>
+                  <Option value="51-200">51–200</Option>
+                  <Option value="201-500">201–500</Option>
+                  <Option value="501-1000">501–1,000</Option>
+                  <Option value="1000+">1,000+</Option>
+                </Select>
+              </Form.Item>
+            </div>
+
+            <Form.Item name="website" label="Website" extra="Optional">
+              <Input
+                placeholder="https://yourcompany.com"
+                style={{ borderRadius: '10px', height: '48px', fontSize: '15px' }}
+              />
+            </Form.Item>
+
+            <Form.Item name="intendedUseCase" label="How do you plan to use AgentStudio?" extra="Optional — helps us set up your account">
+              <Input.TextArea
+                placeholder="e.g. Automate customer support workflows, build internal AI tools..."
+                rows={2}
+                style={{ borderRadius: '10px', fontSize: '15px' }}
               />
             </Form.Item>
 

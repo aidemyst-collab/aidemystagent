@@ -17,7 +17,6 @@ export const authService = {
   },
 
   register: async (data: RegisterRequest): Promise<RegisterResponse> => {
-    // Convert to snake_case for API
     return apiClient.post<RegisterResponse>('/auth/register', {
       email: data.email,
       password: data.password,
@@ -25,6 +24,12 @@ export const authService = {
       organization_id: data.organizationId,
       organization_name: data.organizationName,
       role: data.role,
+      website: data.website,
+      phone_number: data.phoneNumber,
+      country: data.country,
+      industry: data.industry,
+      employee_count: data.employeeCount,
+      intended_use_case: data.intendedUseCase,
     }, { skipAuth: true });
   },
 

@@ -52,6 +52,14 @@ class Organization(Base):
     description = Column(Text)
     logo_url = Column(String(500))
 
+    # Organisation profile (collected at registration for admin review)
+    website = Column(String(500), nullable=True)
+    phone_number = Column(String(50), nullable=True)
+    country = Column(String(100), nullable=True)
+    industry = Column(String(100), nullable=False, server_default='Other')
+    employee_count = Column(String(50), nullable=False, server_default='1-10')
+    intended_use_case = Column(Text, nullable=True)
+
     # Subscription
     subscription_plan_id = Column(UUID(as_uuid=True), ForeignKey("subscription_plans.id"), nullable=True)
     # Using String to match migration - stored as lowercase values like 'active', 'trial'

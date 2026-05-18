@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Card, Table, Tag, Input, Select, Button, Space, message, Modal, Form, Typography
+  Card, Table, Tag, Input, Select, Button, Space, message, Modal, Form, Typography, Descriptions
 } from 'antd';
 import {
   SearchOutlined, PlusOutlined, ReloadOutlined
@@ -266,6 +266,28 @@ const AdminOrganizations: React.FC = () => {
           loading={isLoading}
           rowKey="id"
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `${t} organisations` }}
+          expandable={{
+            expandedRowRender: (r: OrganizationAdmin) => (
+              <Descriptions size="small" bordered column={2} style={{ background: '#fafafa' }}>
+                <Descriptions.Item label="Industry">{r.industry || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Team Size">{r.employeeCount || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Website">
+                  {r.website
+                    ? <a href={r.website} target="_blank" rel="noopener noreferrer">{r.website}</a>
+                    : '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Phone">{r.phoneNumber || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Country">{r.country || '—'}</Descriptions.Item>
+                <Descriptions.Item label="Rejection Reason">
+                  {r.approvalStatus === 'rejected' ? <Text type="danger">{(r as any).approvalRejectedReason || '—'}</Text> : '—'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Intended Use Case" span={2}>
+                  {r.intendedUseCase || <Text type="secondary">Not provided</Text>}
+                </Descriptions.Item>
+              </Descriptions>
+            ),
+            rowExpandable: () => true,
+          }}
         />
       </Card>
 
