@@ -203,7 +203,7 @@ def upgrade():
                         price_monthly_cents = :price_monthly_cents,
                         price_yearly_cents = :price_yearly_cents,
                         sort_order = :sort_order,
-                        features = :features::jsonb,
+                        features = CAST(:features AS JSONB),
                         updated_at = NOW()
                     WHERE name = :name
                 """),
@@ -223,7 +223,7 @@ def upgrade():
                          :max_users, :max_agents, :max_deployments, :max_executions_per_month,
                          :max_tools, :max_credentials,
                          :price_monthly_cents, :price_yearly_cents,
-                         :sort_order, :features::jsonb, true, true, NOW(), NOW())
+                         :sort_order, CAST(:features AS JSONB), true, true, NOW(), NOW())
                 """),
                 {**p, 'id': str(uuid.uuid4()), 'features': json.dumps(p['features'])}
             )

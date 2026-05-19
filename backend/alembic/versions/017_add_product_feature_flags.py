@@ -71,7 +71,7 @@ def upgrade():
     for plan_name, flags in _PLAN_FLAGS.items():
         conn.execute(sa.text(
             "UPDATE subscription_plans "
-            "SET features = features || :flags::jsonb "
+            "SET features = features || CAST(:flags AS JSONB) "
             "WHERE name = :name"
         ), {"flags": json.dumps(flags), "name": plan_name})
 
@@ -87,7 +87,7 @@ def upgrade():
     known_names = list(_PLAN_FLAGS.keys())
     conn.execute(sa.text(
         "UPDATE subscription_plans "
-        "SET features = features || :flags::jsonb "
+        "SET features = features || CAST(:flags AS JSONB) "
         "WHERE name != ALL(:known)"
     ), {"flags": json.dumps(default_flags), "known": known_names})
 
