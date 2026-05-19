@@ -26,10 +26,11 @@ config = context.config
 _raw_db_url = os.getenv("DATABASE_URL", "")
 
 def _normalise_db_url(url: str) -> str:
-    """asyncpg requires sslmode=require, not ssl=require."""
+    """asyncpg does not accept ssl= or sslmode= URL params — strip them entirely.
+    SSL is enabled via connect_args in the engine created by async_engine_from_config."""
     import re
-    url = re.sub(r'[?&]ssl=require', lambda m: m.group().replace('ssl=', 'sslmode='), url, flags=re.IGNORECASE)
-    return url
+    url = re.sub(r'[?&]ssl(?:mode)?=[^&]*', '', url, flags=re.IGNORECASE)
+    return url.rstrip('?&')
 
 database_url = _normalise_db_url(_raw_db_url) if _raw_db_url else ""
 if database_url:
@@ -66,13 +67,20 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
+    import re as _re
     section = config.get_section(config.config_ini_section, {})
     if database_url:
         section["sqlalchemy.url"] = database_url
+
+    # If the original URL had ssl/sslmode, pass ssl=True via connect_args
+    raw_url = os.getenv("DATABASE_URL", "")
+    needs_ssl = bool(_re.search(r'ssl(?:mode)?=', raw_url, _re.IGNORECASE))
+
     connectable = async_engine_from_config(
         section,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args={"ssl": True} if needs_ssl else {},
     )
 
     async with connectable.connect() as connection:
