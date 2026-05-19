@@ -23,7 +23,15 @@ from app.models.system_log import SystemLog
 config = context.config
 
 # Override sqlalchemy.url with DATABASE_URL environment variable if available
-database_url = os.getenv("DATABASE_URL")
+_raw_db_url = os.getenv("DATABASE_URL", "")
+
+def _normalise_db_url(url: str) -> str:
+    """asyncpg requires sslmode=require, not ssl=require."""
+    import re
+    url = re.sub(r'[?&]ssl=require', lambda m: m.group().replace('ssl=', 'sslmode='), url, flags=re.IGNORECASE)
+    return url
+
+database_url = _normalise_db_url(_raw_db_url) if _raw_db_url else ""
 if database_url:
     # Escape % so ConfigParser doesn't treat %xx as interpolation sequences
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
@@ -59,7 +67,6 @@ def do_run_migrations(connection: Connection) -> None:
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
     section = config.get_section(config.config_ini_section, {})
-    # Use raw DATABASE_URL to avoid ConfigParser %xx interpolation issues
     if database_url:
         section["sqlalchemy.url"] = database_url
     connectable = async_engine_from_config(
