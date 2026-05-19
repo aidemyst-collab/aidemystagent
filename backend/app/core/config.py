@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     ACR_USERNAME: str = ""
     ACR_PASSWORD: str = ""
 
+    # Stripe Billing
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PRICE_STARTER_MONTHLY: str = ""
+    STRIPE_PRICE_STARTER_ANNUAL: str = ""
+    STRIPE_PRICE_PROFESSIONAL_MONTHLY: str = ""
+    STRIPE_PRICE_PROFESSIONAL_ANNUAL: str = ""
+    STRIPE_PRICE_ENTERPRISE_MONTHLY: str = ""
+    STRIPE_PRICE_ENTERPRISE_ANNUAL: str = ""
+
     # Email — Azure Communication Services
     EMAIL_ENABLED: bool = False  # Set to True in production
     ACS_CONNECTION_STRING: str = ""   # Azure Communication Services connection string

@@ -12,6 +12,7 @@ from app.models.dynamic_mcp_server import DynamicMCPServer
 from app.models.dynamic_mcp_tool import DynamicMCPTool
 from app.models.hosted_mcp_server import HostedMCPServer, HostedMCPServerStatus, HostedMCPServerSourceType
 from app.models.system_log import SystemLog
+from app.models.billing import OrgSubscription, StripeWebhookEvent
 
 __all__ = [
     # User & Organization
@@ -60,4 +61,7 @@ __all__ = [
     "HostedMCPServerSourceType",
     # System
     "SystemLog",
+    # Billing
+    "OrgSubscription",
+    "StripeWebhookEvent",
 ]

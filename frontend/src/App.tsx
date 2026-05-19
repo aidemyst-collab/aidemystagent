@@ -30,6 +30,7 @@ import ExecutionLogs from './pages/ExecutionLogs';
 import AcceptInvitation from './pages/AcceptInvitation';
 import { OrganizationSettingsPage } from './pages/OrganizationSettings';
 import { PendingApproval } from './pages/PendingApproval';
+import { Billing } from './pages/Billing';
 import { MainLayout } from './components/Common/MainLayout';
 import { ProtectedRoute, FeatureRoute } from './components/Common/ProtectedRoute';
 
@@ -123,6 +124,7 @@ function App() {
                 <Route path="audit-logs" element={<FeatureRoute feature="audit-logs"><AuditLogs /></FeatureRoute>} />
                 <Route path="execution-logs" element={<FeatureRoute feature="audit-logs"><ExecutionLogs /></FeatureRoute>} />
                 <Route path="settings" element={<FeatureRoute feature="settings"><OrganizationSettingsPage /></FeatureRoute>} />
+                <Route path="billing" element={<Billing />} />
                 <Route path="admin" element={<FeatureRoute feature="admin-dashboard"><AdminDashboard /></FeatureRoute>} />
                 <Route path="admin/organizations" element={<FeatureRoute feature="admin-dashboard"><AdminOrganizations /></FeatureRoute>} />
                 <Route path="admin/users" element={<FeatureRoute feature="admin-dashboard"><AdminUsers /></FeatureRoute>} />

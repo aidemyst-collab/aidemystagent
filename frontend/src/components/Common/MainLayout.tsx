@@ -18,6 +18,7 @@ import {
   AuditOutlined,
   HistoryOutlined,
   BankOutlined,
+  CreditCardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RobotOutlined,
@@ -193,6 +194,12 @@ export const MainLayout = () => {
                 icon: <SettingOutlined />,
                 label: 'Settings',
                 onClick: () => navigate('/settings'),
+              },
+              {
+                key: '/billing',
+                icon: <CreditCardOutlined />,
+                label: 'Billing',
+                onClick: () => navigate('/billing'),
               },
             ]
           : []),
