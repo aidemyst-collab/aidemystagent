@@ -17,7 +17,11 @@ from app.core.logging_config import logger
 from app.models.billing import OrgSubscription
 from app.models.user import Organization
 
-stripe.api_key = settings.STRIPE_SECRET_KEY
+def _get_stripe_key() -> str:
+    import os
+    return os.environ.get("STRIPE_SECRET_KEY") or settings.STRIPE_SECRET_KEY
+
+stripe.api_key = _get_stripe_key()
 
 # ── Plan limits (mirrors subscription_plans table) ────────────────────────────
 
@@ -184,7 +188,11 @@ async def get_invoices(org_id: UUID, limit: int, db: AsyncSession) -> dict:
 
 
 def get_plan_catalogue() -> dict:
-    cfg = settings
+    import os
+    # Read price IDs directly from env at call time — Pydantic caches at import time
+    # but Container App env vars may be injected after module load on some revisions.
+    def _price(key: str) -> str:
+        return os.environ.get(key) or getattr(settings, key, "")
     return {
         "plans": [
             {
@@ -214,8 +222,8 @@ def get_plan_catalogue() -> dict:
                 "name": "Starter",
                 "price_monthly_aed": 149,
                 "price_annual_aed": 1490,
-                "stripe_price_id_monthly": cfg.STRIPE_PRICE_STARTER_MONTHLY,
-                "stripe_price_id_annual": cfg.STRIPE_PRICE_STARTER_ANNUAL,
+                "stripe_price_id_monthly": _price("STRIPE_PRICE_STARTER_MONTHLY"),
+                "stripe_price_id_annual": _price("STRIPE_PRICE_STARTER_ANNUAL"),
                 "max_users": 5,
                 "max_agents": 15,
                 "max_deployments": 5,
@@ -239,8 +247,8 @@ def get_plan_catalogue() -> dict:
                 "name": "Professional",
                 "price_monthly_aed": 449,
                 "price_annual_aed": 4490,
-                "stripe_price_id_monthly": cfg.STRIPE_PRICE_PROFESSIONAL_MONTHLY,
-                "stripe_price_id_annual": cfg.STRIPE_PRICE_PROFESSIONAL_ANNUAL,
+                "stripe_price_id_monthly": _price("STRIPE_PRICE_PROFESSIONAL_MONTHLY"),
+                "stripe_price_id_annual": _price("STRIPE_PRICE_PROFESSIONAL_ANNUAL"),
                 "max_users": 20,
                 "max_agents": 50,
                 "max_deployments": 20,
@@ -265,8 +273,8 @@ def get_plan_catalogue() -> dict:
                 "name": "Enterprise",
                 "price_monthly_aed": 1299,
                 "price_annual_aed": 12990,
-                "stripe_price_id_monthly": cfg.STRIPE_PRICE_ENTERPRISE_MONTHLY,
-                "stripe_price_id_annual": cfg.STRIPE_PRICE_ENTERPRISE_ANNUAL,
+                "stripe_price_id_monthly": _price("STRIPE_PRICE_ENTERPRISE_MONTHLY"),
+                "stripe_price_id_annual": _price("STRIPE_PRICE_ENTERPRISE_ANNUAL"),
                 "max_users": -1,
                 "max_agents": -1,
                 "max_deployments": -1,
