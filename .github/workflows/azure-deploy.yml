@@ -213,7 +213,15 @@ jobs:
               "ACR_PASSWORD=${{ secrets.ACR_PASSWORD }}" \
               "ACS_CONNECTION_STRING=${{ secrets.ACS_CONNECTION_STRING }}" \
               "ACS_SENDER_ADDRESS=${{ secrets.ACS_SENDER_ADDRESS }}" \
-              "FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
+              "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" \
+              "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" \
+              "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" \
+              "STRIPE_PRICE_STARTER_MONTHLY=${{ secrets.STRIPE_PRICE_STARTER_MONTHLY }}" \
+              "STRIPE_PRICE_STARTER_ANNUAL=${{ secrets.STRIPE_PRICE_STARTER_ANNUAL }}" \
+              "STRIPE_PRICE_PROFESSIONAL_MONTHLY=${{ secrets.STRIPE_PRICE_PROFESSIONAL_MONTHLY }}" \
+              "STRIPE_PRICE_PROFESSIONAL_ANNUAL=${{ secrets.STRIPE_PRICE_PROFESSIONAL_ANNUAL }}" \
+              "STRIPE_PRICE_ENTERPRISE_MONTHLY=${{ secrets.STRIPE_PRICE_ENTERPRISE_MONTHLY }}" \
+              "STRIPE_PRICE_ENTERPRISE_ANNUAL=${{ secrets.STRIPE_PRICE_ENTERPRISE_ANNUAL }}"
 
       - name: Deploy Frontend to Container Apps
         run: |
