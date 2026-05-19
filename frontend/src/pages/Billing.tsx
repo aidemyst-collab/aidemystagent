@@ -258,17 +258,18 @@ export const Billing: React.FC = () => {
                     <div style={{ marginTop: 16 }}>
                       {isCurrent ? (
                         <Button block disabled>Current Plan</Button>
-                      ) : isUpgrade && priceId ? (
+                      ) : plan.key === 'enterprise' ? (
+                        <Button block href="mailto:sales@aidemyst.com">Contact Sales</Button>
+                      ) : isUpgrade ? (
                         <Button
                           block
                           type={isPopular ? 'primary' : 'default'}
-                          onClick={() => checkoutMutation.mutate({ priceId })}
+                          disabled={!priceId}
+                          onClick={() => priceId && checkoutMutation.mutate({ priceId })}
                           loading={checkoutMutation.isPending && checkoutMutation.variables?.priceId === priceId}
                         >
-                          {plan.key === 'enterprise' ? 'Contact Sales' : 'Upgrade'}
+                          Upgrade
                         </Button>
-                      ) : plan.key === 'enterprise' && !priceId ? (
-                        <Button block href="/contact">Contact Sales</Button>
                       ) : (
                         <Button block disabled>Downgrade via Portal</Button>
                       )}
