@@ -14,10 +14,10 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build arguments → process env vars (Vite reads VITE_* from process.env at build time)
+# Build arguments — defaults are production URLs (not secrets, safe to hardcode)
 ARG VITE_API_BASE_URL=http://localhost:8000
-ARG VITE_DEMYSTRAG_URL=http://localhost:8001
-ARG VITE_MOCK_API_URL=http://localhost:5183
+ARG VITE_DEMYSTRAG_URL=https://rag.agentstudio365.com
+ARG VITE_MOCK_API_URL=https://mock.agentstudio365.com
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ENV VITE_DEMYSTRAG_URL=${VITE_DEMYSTRAG_URL}
 ENV VITE_MOCK_API_URL=${VITE_MOCK_API_URL}

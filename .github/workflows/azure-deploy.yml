@@ -114,8 +114,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}
-            VITE_DEMYSTRAG_URL=${{ secrets.DEMYSTRAG_URL }}
-            VITE_MOCK_API_URL=${{ secrets.MOCK_API_URL }}
 
       - name: Get SHA image tag
         id: sha
