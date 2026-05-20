@@ -112,10 +112,32 @@ export const billingService = {
     return res.json();
   },
 
-  /** Re-issue JWT with updated plan after Stripe checkout returns. */
-  async refreshTokenAfterUpgrade(): Promise<void> {
+  /**
+   * Re-issue JWT with updated plan after Stripe checkout returns.
+   * Polls /billing/subscription until the backend has processed the Stripe
+   * webhook and the plan name changes, then refreshes the access token so
+   * hasProduct() picks up the newly unlocked products immediately.
+   */
+  async refreshTokenAfterUpgrade(previousPlan = 'free'): Promise<void> {
     const { tokens, updateTokens } = useAuthStore.getState();
     if (!tokens?.refreshToken) return;
+
+    // Wait for the Stripe webhook to be processed (up to 15s, polling every 2s)
+    const MAX_ATTEMPTS = 8;
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      try {
+        const subRes = await authFetch(getApiUrl('/billing/subscription'));
+        if (subRes.ok) {
+          const sub: SubscriptionInfo = await subRes.json();
+          if (sub.plan !== previousPlan) break; // webhook processed — plan updated
+        }
+      } catch {
+        // ignore network errors during polling
+      }
+    }
+
+    // Refresh the JWT so it carries the updated products[] claim
     const res = await fetch(getApiUrl('/auth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

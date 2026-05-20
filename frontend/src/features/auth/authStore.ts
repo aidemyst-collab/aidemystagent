@@ -171,23 +171,22 @@ export const useAuthStore = create<AuthState>()(
         if (!user) return false;
         if (user.isPlatformAdmin) return true;
 
-        // Prefer products array on the user object (populated from backend response)
-        if (user.products?.length) {
-          return user.products.includes(product);
-        }
-
-        // Fall back to decoding the JWT access token payload
+        // Always decode the current JWT first — refreshTokenAfterUpgrade updates
+        // tokens.accessToken without updating user.products, so reading user.products
+        // would miss newly unlocked products after a plan upgrade.
         if (tokens?.accessToken) {
           try {
             const b64 = tokens.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
             const payload = JSON.parse(atob(b64)) as Record<string, unknown>;
             if (payload.is_platform_admin) return true;
-            return (payload.products as string[] | undefined)?.includes(product) ?? false;
+            const jwtProducts = payload.products as string[] | undefined;
+            if (jwtProducts !== undefined) return jwtProducts.includes(product);
           } catch {
-            return false;
+            // fall through to user object
           }
         }
-        return false;
+
+        return user.products?.includes(product) ?? false;
       },
     }),
     {

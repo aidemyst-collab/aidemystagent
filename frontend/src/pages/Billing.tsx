@@ -6,6 +6,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, CrownOutlined,
   CreditCardOutlined, FileTextOutlined, SyncOutlined,
+  DatabaseOutlined, ApiOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
@@ -40,10 +41,12 @@ export const Billing: React.FC = () => {
   // Handle success redirect from Stripe Checkout
   useEffect(() => {
     if (searchParams.get('success') === '1') {
-      message.success('Payment successful! Refreshing your plan…');
+      message.success('Payment successful! Your plan is being activated…');
       setSearchParams({}, { replace: true });
-      billingService.refreshTokenAfterUpgrade().then(() => {
+      // Pass current plan so polling knows when the webhook has updated the DB
+      billingService.refreshTokenAfterUpgrade(subData?.plan ?? 'free').then(() => {
         queryClient.invalidateQueries({ queryKey: ['billing', 'subscription'] });
+        message.success('Your new plan is active! New product links have been added to the sidebar.');
       });
     }
   }, []);
@@ -196,6 +199,36 @@ export const Billing: React.FC = () => {
         />
       )}
 
+      {/* Add-on products callout — shown when the current plan includes DemystRAG or Mock API */}
+      {(plansData?.plans ?? []).find(p => p.key === currentPlan)?.has_demystrag && (
+        <Alert
+          type="info"
+          showIcon
+          icon={<DatabaseOutlined />}
+          style={{ marginBottom: 12 }}
+          message={
+            <span>
+              <strong>DemystRAG</strong> is included in your plan —{' '}
+              find the link in the left sidebar under <strong>Add-ons</strong>.
+            </span>
+          }
+        />
+      )}
+      {(plansData?.plans ?? []).find(p => p.key === currentPlan)?.has_mock_api && (
+        <Alert
+          type="success"
+          showIcon
+          icon={<ApiOutlined />}
+          style={{ marginBottom: 24 }}
+          message={
+            <span>
+              <strong>Mock API</strong> is included in your plan —{' '}
+              find the link in the left sidebar under <strong>Add-ons</strong>.
+            </span>
+          }
+        />
+      )}
+
       {/* Billing toggle */}
       <Row align="middle" style={{ marginBottom: 20 }} gutter={12}>
         <Col><Text strong>Monthly</Text></Col>
@@ -245,13 +278,47 @@ export const Billing: React.FC = () => {
                     </Space>
 
                     <ul style={{ paddingLeft: 0, listStyle: 'none', margin: '12px 0' }}>
-                      {plan.features.map((f) => (
-                        <li key={f} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 13 }}>
-                          <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 2, flexShrink: 0 }} />
-                          <span>{f}</span>
-                        </li>
-                      ))}
+                      {plan.features
+                        .filter((f) => !f.startsWith('DemystRAG') && !f.startsWith('Mock API'))
+                        .map((f) => (
+                          <li key={f} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 13 }}>
+                            <CheckCircleOutlined style={{ color: '#52c41a', marginTop: 2, flexShrink: 0 }} />
+                            <span>{f}</span>
+                          </li>
+                        ))}
                     </ul>
+
+                    {(plan.has_demystrag || plan.has_mock_api) && (
+                      <div style={{ marginTop: 4, marginBottom: 12 }}>
+                        <Text style={{ fontSize: 11, fontWeight: 600, color: '#8c8c8c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          Included Add-ons
+                        </Text>
+                        <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {plan.has_demystrag && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#e6f7ff', borderRadius: 8, border: '1px solid #91d5ff' }}>
+                              <DatabaseOutlined style={{ color: '#1890ff', fontSize: 15 }} />
+                              <div>
+                                <Text strong style={{ fontSize: 12, color: '#003a8c' }}>DemystRAG</Text>
+                                <Text style={{ fontSize: 11, color: '#096dd9', display: 'block' }}>
+                                  {plan.key === 'enterprise' ? 'Unlimited docs & storage' : '2,000 documents · 20 GB'}
+                                </Text>
+                              </div>
+                            </div>
+                          )}
+                          {plan.has_mock_api && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#f6ffed', borderRadius: 8, border: '1px solid #b7eb8f' }}>
+                              <ApiOutlined style={{ color: '#52c41a', fontSize: 15 }} />
+                              <div>
+                                <Text strong style={{ fontSize: 12, color: '#135200' }}>Mock API</Text>
+                                <Text style={{ fontSize: 11, color: '#389e0d', display: 'block' }}>
+                                  {plan.key === 'enterprise' ? 'Full access' : 'Configurable testing'}
+                                </Text>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {canManage && (
