@@ -5,8 +5,8 @@ from app.core.config import settings
 
 
 def _fix_ssl(url: str) -> str:
-    """Convert sslmode=require → ssl=require for asyncpg compatibility.
-    asyncpg accepts ssl=require as a URL query param natively."""
+    """Strip trailing whitespace and normalise sslmode → ssl for asyncpg."""
+    url = url.strip()
     return re.sub(r'([?&])sslmode=', r'\1ssl=', url, flags=re.IGNORECASE)
 
 

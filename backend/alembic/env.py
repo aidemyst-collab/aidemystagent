@@ -26,9 +26,9 @@ config = context.config
 _raw_db_url = os.getenv("DATABASE_URL", "")
 
 def _normalise_db_url(url: str) -> str:
-    """asyncpg accepts ssl=require as a URL query param natively.
-    Only fix sslmode=require → ssl=require (sslmode is not a valid asyncpg URL param)."""
+    """Fix URL for asyncpg: strip trailing whitespace, normalise sslmode → ssl."""
     import re
+    url = url.strip()
     return re.sub(r'([?&])sslmode=', r'\1ssl=', url, flags=re.IGNORECASE)
 
 database_url = _normalise_db_url(_raw_db_url) if _raw_db_url else ""
