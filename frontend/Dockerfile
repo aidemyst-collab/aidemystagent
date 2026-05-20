@@ -14,11 +14,15 @@ RUN npm ci
 # Copy application code
 COPY . .
 
-# Build argument for API URL
+# Build arguments for runtime URLs
 ARG VITE_API_BASE_URL=http://localhost:8000
+ARG VITE_DEMYSTRAG_URL=http://localhost:8001
+ARG VITE_MOCK_API_URL=http://localhost:5183
 
 # Create .env file for Vite to read during build
-RUN echo "VITE_API_BASE_URL=${VITE_API_BASE_URL}" > .env
+RUN echo "VITE_API_BASE_URL=${VITE_API_BASE_URL}" > .env && \
+    echo "VITE_DEMYSTRAG_URL=${VITE_DEMYSTRAG_URL}" >> .env && \
+    echo "VITE_MOCK_API_URL=${VITE_MOCK_API_URL}" >> .env
 
 # Build the application
 RUN npm run build
