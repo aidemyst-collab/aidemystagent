@@ -4,20 +4,15 @@ from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
 
-def _fix_ssl(url: str) -> tuple:
-    """Strip ssl/sslmode params from URL; return (clean_url, connect_args).
-    asyncpg does not accept ssl= or sslmode= as URL parameters — pass ssl=True via connect_args."""
-    needs_ssl = bool(re.search(r'ssl(?:mode)?=', url, re.IGNORECASE))
-    clean = re.sub(r'[?&]ssl(?:mode)?=[^&]*', '', url, flags=re.IGNORECASE).rstrip('?&')
-    return clean, {"ssl": True} if needs_ssl else {}
+def _fix_ssl(url: str) -> str:
+    """Convert sslmode=require → ssl=require for asyncpg compatibility.
+    asyncpg accepts ssl=require as a URL query param natively."""
+    return re.sub(r'([?&])sslmode=', r'\1ssl=', url, flags=re.IGNORECASE)
 
-
-_db_url, _db_ssl = _fix_ssl(settings.DATABASE_URL)
 
 # Create async engine for main database
 engine = create_async_engine(
-    _db_url,
-    connect_args=_db_ssl,
+    _fix_ssl(settings.DATABASE_URL),
     echo=settings.DEBUG,
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
