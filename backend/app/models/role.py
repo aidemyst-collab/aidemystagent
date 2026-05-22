@@ -150,6 +150,7 @@ SYSTEM_ROLES = [
             "credentials:*",
             "deployments:*",
             "analytics:*",
+            "dashboard:read",
             "audit:read"
         ]
     },
@@ -168,6 +169,7 @@ SYSTEM_ROLES = [
             "credentials:*",
             "deployments:*",
             "analytics:*",
+            "dashboard:read",
             "audit:read"
         ]
     },
@@ -184,7 +186,8 @@ SYSTEM_ROLES = [
             "tools:*",
             "credentials:read",
             "deployments:*",
-            "analytics:read"
+            "analytics:read",
+            "dashboard:read"
         ]
     },
     {
@@ -209,7 +212,8 @@ SYSTEM_ROLES = [
             "credentials:read",
             "deployments:read",
             "deployments:create:non_prod",
-            "analytics:read"
+            "analytics:read",
+            "dashboard:read"
         ]
     },
     {
@@ -225,7 +229,8 @@ SYSTEM_ROLES = [
             "agents:execute",
             "tools:read",
             "deployments:*",
-            "analytics:read"
+            "analytics:read",
+            "dashboard:read"
         ]
     },
     {
@@ -240,7 +245,8 @@ SYSTEM_ROLES = [
             "agents:read",
             "tools:read",
             "deployments:read",
-            "analytics:read"
+            "analytics:read",
+            "dashboard:read"
         ]
     }
 ]
