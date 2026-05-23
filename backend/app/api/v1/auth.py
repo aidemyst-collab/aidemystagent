@@ -176,13 +176,20 @@ def build_token_claims(user: User, org: Organization, plan, role_name: str) -> d
 
     return {
         "sub": str(user.id),
+        "email": user.email,
+        "full_name": getattr(user, "full_name", None),
         "org_id": str(org.id),
         "org_name": org.name,
         "org_slug": org.slug or "",
         "org_role": role_name,
         "is_platform_admin": bool(getattr(user, "is_platform_admin", False)),
         "products": products,
-        "plan_limits": plan_limits,
+        "plan_limits": {
+            **plan_limits,
+            # demystrag_ prefixed aliases — DemystRAG reads these keys
+            "demystrag_max_documents": plan_limits.get("max_documents", 100),
+            "demystrag_max_storage_mb": plan_limits.get("max_storage_mb", 1000),
+        },
     }
 
 
